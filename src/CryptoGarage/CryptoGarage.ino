@@ -10,6 +10,10 @@
 * Entrypoint is setup()
 */
 
+#define RELAYLCTECH 0
+#define RELAYWEMOS 1
+#define ENABLE_STATUS_LED 1
+
 //OTA Update
 #include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266WebServer.h>
@@ -20,12 +24,15 @@
 #include "Debug.h"
 #include "Crypto.h"
 #include "PersistentMemory.h"
-#include "Relay.h"
+#include "IRelay.h"
 #include "AutoTrigger.h"
 #include "GarageGate.h"
 #include "ConnectionState.h"
+#if ENABLE_STATUS_LED == 1
+  #include "StatusLED.h"
+#endif
 
-const char FW_VERSION[] = "3.0";
+const char FW_VERSION[] = "3.2";
 
 //Default settings
 String WIFISSID = "GarageTest";
@@ -70,8 +77,22 @@ struct ProcessMessageStruct{
   String responseData;
 };
 
+//Device specific stuff
+
+#if RELAYLCTECH == 1
+  #include "LCTechRelay.h"
+  LCTechRelay relay;  
+#elif RELAYWEMOS == 1
+  #include "WemosShieldRelay.h"
+  WemosShieldRelay relay;
+//#elif
+  //your relay here...
+#endif
+#if ENABLE_STATUS_LED == 1
+  StatusLED &led = StatusLED::instance();
+#endif
+
 //Garage specific stuff
-Relay relay;
 AutoTrigger autoTrigger;
 GarageGate gateState;
 ConnectionState connectionState;
@@ -85,6 +106,7 @@ const char UPDATE_PATH[] = "/update";
 //Communication specific stuff
 Crypto crypt;
 PersistentMemory mem;
+
 
 //Create WiFi AP
 void setupWiFi() {
@@ -165,6 +187,10 @@ void setup() {
   setupWiFi();
   server.begin();
   printDebug("Bootsequence finished!\n");
+  #if ENABLE_STATUS_LED == 1
+    led.fade(StatusLED::SINGLE_ON_OFF, 2000);
+  #endif
+  
 }
 
 void triggerRelay() {
@@ -191,11 +217,11 @@ void triggerRelay() {
 //  return htmlPage;
 //}
 
-String wrap(String message){
+String wrap(String &message){
   return String(MESSAGE_BEGIN) + message + MESSAGE_END;
 }
 
-String unwrap(String message) {
+String unwrap(String &message) {
   String out;
   int startIndex = message.indexOf(MESSAGE_BEGIN);
   int endIndex = message.indexOf(MESSAGE_END, startIndex);
@@ -223,7 +249,7 @@ String prepareData(String data) {
 }
 
 //Here we process the plaintext commands and generate an answer for the client.
-ProcessMessageStruct processMessage(String message) {
+ProcessMessageStruct processMessage(String &message) {
   if (message == COMMAND_HELLO) {
     printDebug(message);
     return {ACK, ""};
@@ -259,6 +285,7 @@ ProcessMessageStruct processMessage(String message) {
 
   if (message == COMMAND_GET_STATUS){
     String data = "autotrigger:" + String(autoTrigger.isActive()) + "\n" +
+                  "relaystate:" + String(relay.getState()) + "\n" +
                   "updatemode:" + String(update_mode) + "\n" +
                   "FW-Version: " + FW_VERSION;
     return {DATA, data};
@@ -302,6 +329,9 @@ ProcessMessageStruct processMessage(String message) {
       httpUpdater.setup(&httpUpdateServer, UPDATE_PATH);
       httpUpdateServer.begin();
       update_mode = true;
+      #if ENABLE_STATUS_LED == 1
+        led.fade(StatusLED::PERIODIC_FADE, 2000);
+      #endif
     }
     return {DATA, String("http://192.168.4.1:8266") + UPDATE_PATH}; //IP static for now...
   }
@@ -432,7 +462,7 @@ void doTCPServerStuff() {
                   
                   case DATA:
                       crypt.getRandomIV12(iv);
-                      send_Data(client, prepareData(encryptToMessage(iv, (uint8_t*)ret.responseData.c_str(), 12, strlen(ret.responseData.c_str())))); 
+                      send_Data(client, prepareData(encryptToMessage(iv, (uint8_t*)ret.responseData.c_str(), sizeof(iv), strlen(ret.responseData.c_str())))); 
                   break;
                   
                   case ERR:

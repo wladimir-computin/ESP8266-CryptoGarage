@@ -16,7 +16,7 @@ void Crypto::getRandomIV12(uint8_t * iv){
   ESP8266TrueRandom.memfill((char*)iv, 12);
 }
 
-void Crypto::encryptData(String data, uint8_t * iv, uint8_t * tag, uint8_t * out) {
+void Crypto::encryptData(String &data, uint8_t * iv, uint8_t * tag, uint8_t * out) {
   uint8_t in[data.length()];
   data.getBytes(in, sizeof(in));
   encryptData(in, sizeof(in), iv, tag, out);
@@ -57,11 +57,11 @@ String Crypto::bytesToBase64(uint8_t * bytes, int len) {
   return String((char*)temp);
 }
 
-void Crypto::base64ToBytes(String in, uint8_t * out) {
+void Crypto::base64ToBytes(String &in, uint8_t * out) {
   base64.decode(out, (char*)in.c_str(), in.length());
 }
 
-uint16_t Crypto::base64DecodedLength(String b64){
+uint16_t Crypto::base64DecodedLength(String &b64){
   return base64.decodedLength((char*)b64.c_str(), b64.length());
 }
 

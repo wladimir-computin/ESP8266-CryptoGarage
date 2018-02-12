@@ -5,6 +5,12 @@
 
 #include "Debug.h"
 
+#define ENABLE_STATUS_LED 1
+
+#if ENABLE_STATUS_LED == 1
+  #include "StatusLED.h"
+#endif
+
 class AutoTrigger {
   
   private:
@@ -15,6 +21,9 @@ class AutoTrigger {
     bool finished = false;
     int tickerCount = 0;
     int tickerGoal = 10;
+    #if ENABLE_STATUS_LED == 1
+      StatusLED &led = StatusLED::instance();
+    #endif
       
   public:
       void engage();

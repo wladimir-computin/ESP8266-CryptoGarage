@@ -10,7 +10,7 @@
 #define DEBUG_H
   #include <Arduino.h>
 
-  #define DEBUG 0 //Change to 1 for debug output
+  #define DEBUG 1 //Change to 1 for debug output
   
   #if DEBUG == 1
     #define printDebug(x) Serial.println(x)

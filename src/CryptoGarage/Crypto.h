@@ -22,15 +22,15 @@ class Crypto {
 
       void getRandomIV12(uint8_t * iv);
    
-      void encryptData(String data, uint8_t * iv, uint8_t * tag, uint8_t * out);
+      void encryptData(String &data, uint8_t * iv, uint8_t * tag, uint8_t * out);
       void encryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out);
       
       void decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out);
       String decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag);
       
       String bytesToBase64(uint8_t * bytes, int len);
-      void base64ToBytes(String in, uint8_t * out);
-      uint16_t base64DecodedLength(String b64);
+      void base64ToBytes(String &in, uint8_t * out);
+      uint16_t base64DecodedLength(String &b64);
    
       const uint8_t * getShaKey();
       String getShaKey_b64();

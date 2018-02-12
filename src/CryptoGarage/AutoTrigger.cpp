@@ -18,6 +18,9 @@ void AutoTrigger::engage() {
   active = true;
   finished = false;
   AutoTriggerTicker.attach(1, AutoTriggerTick, (void*)this);
+  #if ENABLE_STATUS_LED == 1
+    led.fade(StatusLED::PERIODIC_FADE, 1000);
+  #endif
 }
 
 void AutoTrigger::disengage() {
@@ -25,6 +28,9 @@ void AutoTrigger::disengage() {
   active = false;
   AutoTriggerTicker.detach();
   tickerCount = 0;
+  #if ENABLE_STATUS_LED == 1
+    led.setState(false);
+  #endif
 }
 
 bool AutoTrigger::isActive(){
