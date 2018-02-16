@@ -119,7 +119,6 @@ GarageGate gateState;
 ESP8266WebServer httpUpdateServer(HTTP_OTA_PORT);
 ESP8266HTTPUpdateServer httpUpdater;
 bool update_mode = false;
-const char UPDATE_PATH[] = "/update";
 
 //Communication specific stuff
 Crypto crypt;

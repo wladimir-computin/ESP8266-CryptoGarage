@@ -17,10 +17,12 @@
   const int HTTP_OTA_PORT = 8266;
   const int CONNECTION_STATE_TIMEOUT = 2; //Seconds which the client has to answer the challenge message.
   const int RATE_LIMIT_TIMEOUT_MS = 200; //Milliseconds between communication attempts, set to 0 to disable rate limiting.
-  const int TCP_TIMEOUT_MS = 10;  //not sure why, but lesser values behave faster and more stable.
+  const int TCP_TIMEOUT_MS = 10;  //not sure why, but smaller values behave faster and more stable.
   const int RELAY_TRIGGER_TIME_MS = 250;  //click ...time in ms... clack
   const int AES_GCM_TAG_LEN = 16; //Recommended value is 16. Don't change unless you understand how AES-GCM works.
   const int AES_GCM_IV_LEN = 12; //Recommended value is 12.
+
+  const char UPDATE_PATH[] = "/update";
 
   const char DEFAULT_WIFISSID[] = "GarageTest";
   const char DEFAULT_WIFIPASS[] = "12345670";
