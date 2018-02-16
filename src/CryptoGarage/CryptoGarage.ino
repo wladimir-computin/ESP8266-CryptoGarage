@@ -1,5 +1,5 @@
 /*
-* CryptoGarage - Crypto
+* CryptoGarage
 * 
 * A pracitcal example of a secure IOT device. (still really rare nowadays!)
 * 
@@ -24,7 +24,7 @@
 * I DO NOT GUARANTEE ANYTHING!
 * If hackers break into your garage and steal your fancy car, I won't buy you a new one.
 * 
-* I did my best, but if you find bugs, contact me :)
+* If you find bugs, contact me :)
 */
 
 /*
