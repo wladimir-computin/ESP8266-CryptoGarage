@@ -308,7 +308,7 @@ ProcessMessageStruct processMessage(String &message) {
 
   if (message == COMMAND_GET_STATUS){
     String data = "autotrigger:" + String(autoTrigger.isActive()) + "\n" +
-                  "ratelimit:" + String(RATE_LIMIT_TIMEOUT_MS) + "\n" +
+                  "ratelimit:" + RATE_LIMIT_TIMEOUT_MS + "\n" +
                   "relaystate:" + String(relay.getState()) + "\n" +
                   "updatemode:" + String(update_mode) + "\n" +
                   "FW-Version: " + FW_VERSION;
@@ -357,7 +357,7 @@ ProcessMessageStruct processMessage(String &message) {
         led.fade(StatusLED::PERIODIC_FADE, 2000);
       #endif
     }
-    return {DATA, String("http://192.168.4.1:8266") + UPDATE_PATH}; //IP static for now...
+    return {DATA, String("http://192.168.4.1:") + HTTP_OTA_PORT + UPDATE_PATH}; //IP static for now...
   }
 
   printDebug("Received unknown command:" + message);
