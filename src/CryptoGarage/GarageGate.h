@@ -1,3 +1,11 @@
+/*
+* CryptoGarage - GarageGate
+* 
+* Class for tracking the state of the garage gate. For now it just differentiates between STILL (e.g. open or closed) or MOVING (you know, moving)
+* Works like a state machine, after calling trigger() the gate is in MOVING state for n seconds or util trigger() is called again.
+* setState() not implemented (because not needed) yet.
+*/
+
 #ifndef GARAGEGATE_H
 #define GARAGEGATE_H
 

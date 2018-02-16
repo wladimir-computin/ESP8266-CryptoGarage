@@ -8,11 +8,11 @@
 
 #ifndef DEBUG_H
 #define DEBUG_H
-  #include <Arduino.h>
 
-  #define DEBUG 1 //Change to 1 for debug output
+  #include <Arduino.h>
+  #include "AllConfig.h"
   
-  #if DEBUG == 1
+  #if DEBUG == 1 //Defined in AllConfig.h
     #define printDebug(x) Serial.println(x)
   #else
     #define printDebug(x) while(false)

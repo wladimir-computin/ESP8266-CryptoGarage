@@ -1,3 +1,9 @@
+/*
+* CryptoGarage - cBase64
+* 
+* Simple class for converting strings and uint8_t arrays to base64 and back.
+*/
+
 #ifndef _CBASE64_H
 #define _CBASE64_H
 

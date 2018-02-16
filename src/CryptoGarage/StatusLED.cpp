@@ -1,5 +1,6 @@
 /*
 * CryptoGarage - StatusLED
+* 
 * (implementation)
 */
 
@@ -63,6 +64,7 @@ void StatusLED::ledTickerTick2(){
   }
 }
 
+//Convert range pwm from [0,255] to [1023,1]
 int StatusLED::conv1023(int val){
   int ret = (int)(-0.015717*(val*val)) + 1023;
   if(ret > MINLED)
@@ -76,15 +78,19 @@ int StatusLED::conv1023(int val){
 void StatusLED::fadeCompleted(){
   switch(argument.fademode){
     case NONE:
+    
     break;
+    
     case SINGLE_ON_OFF:
       argument.fademode = NONE;
       fadeToVal(0, argument.time_ms);
     break;
+    
     case SINGLE_OFF_ON:
       argument.fademode = NONE;
       fadeToVal(255, argument.time_ms);
     break;
+    
     case PERIODIC_FADE:
       if(current == 0)
         fadeToVal(255, argument.time_ms);

@@ -1,3 +1,9 @@
+/*
+* CryptoGarage - cBase64
+* 
+* (implementation)
+*/
+
 #include "cBase64.h"
 
 const char _Base64AlphabetTable[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"

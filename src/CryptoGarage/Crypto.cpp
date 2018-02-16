@@ -1,3 +1,9 @@
+/*
+* CryptoGarage - Crypto
+* 
+* (implementation)
+*/
+
 #include "Crypto.h"
 
 void Crypto::init(String devicepass){
@@ -12,8 +18,8 @@ void Crypto::generateSHA256Key(String devicepass) {
   printDebug("SHA256-Key=" + getShaKey_b64());
 }
 
-void Crypto::getRandomIV12(uint8_t * iv){
-  ESP8266TrueRandom.memfill((char*)iv, 12);
+void Crypto::getRandomIV(uint8_t * iv){
+  ESP8266TrueRandom.memfill((char*)iv, AES_GCM_IV_LEN);
 }
 
 void Crypto::encryptData(String &data, uint8_t * iv, uint8_t * tag, uint8_t * out) {
@@ -25,30 +31,26 @@ void Crypto::encryptData(String &data, uint8_t * iv, uint8_t * tag, uint8_t * ou
 void Crypto::encryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out) {
   GCM<AES256> gcm;
   gcm.setKey(shaKey, sizeof(shaKey));
-  gcm.setIV(iv, 12);
+  gcm.setIV(iv, AES_GCM_IV_LEN);
   gcm.encrypt(out, data, dataLen);
-  gcm.computeTag(tag, 16);
+  gcm.computeTag(tag, AES_GCM_TAG_LEN);
 }
 
 void Crypto::decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out) {
   GCM<AES256> gcm;
   gcm.setKey(shaKey, sizeof(shaKey));
-  gcm.setIV(iv, 12);
+  gcm.setIV(iv, AES_GCM_IV_LEN);
   gcm.decrypt(out, data, dataLen);
-  if (!gcm.checkTag(tag, 16)) {
-    out = NULL;
+  if (!gcm.checkTag(tag, AES_GCM_TAG_LEN)) { //data corrupted or tampered, throw away!
+    memset(out, '\0', dataLen);
   }
 }
 
 String Crypto::decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag) {
   uint8_t out[dataLen + 1];
   decryptData(data, dataLen, iv, tag, out);
-  if(out != NULL){
-    out[dataLen] = '\0';
-    return String((char*)out);
-  } else {
-    return String("");
-  }
+  out[dataLen] = '\0'; //never forget the null terminator, ever!
+  return String((char*)out);
 }
 
 String Crypto::bytesToBase64(uint8_t * bytes, int len) {

@@ -1,5 +1,6 @@
 /*
 * CryptoGarage - PersistentMemory
+* 
 * We need persistent memory to remember settings (like WiFi SSID and passphrase) after reboots.
 * This class contains helper/wrapper functions. They simplify the usage of the EEPROM library, which is just some sort of bytewise access to flash memory.
 * Don't forget to call .commit() after finishing your memory writing operations, otherwise any changes will be lost after reboot.

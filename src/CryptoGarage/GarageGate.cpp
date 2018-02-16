@@ -1,3 +1,9 @@
+/*
+* CryptoGarage - GarageGate
+* 
+* (implementation)
+*/
+
 #include "GarageGate.h"
 
 void GarageGate::gateTickerTick(void * context) {

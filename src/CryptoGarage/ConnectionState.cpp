@@ -1,3 +1,9 @@
+/*
+* CryptoGarage - ConnectionState
+* 
+* (implementation)
+*/
+
 #include "ConnectionState.h"
 
 void ConnectionState::conStateTick(void * context) {
@@ -8,13 +14,12 @@ void ConnectionState::setState(ConState con) {
   switch (con) {
     case NONE:
       printDebug("ConnectionState: NONE");
-      conStateTicker.detach();
       conState = NONE;
       break;
     case PHASE2:
       printDebug("ConnectionState: PHASE2");
       if (conState != PHASE2) {
-        conStateTicker.attach(2, conStateTick, (void*)this);
+        conStateTicker.once(CONNECTION_STATE_TIMEOUT, conStateTick, (void*)this);
         conState = PHASE2;
       }
       break;

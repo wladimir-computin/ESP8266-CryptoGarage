@@ -1,3 +1,9 @@
+/*
+* CryptoGarage - AutoTrigger
+* 
+* (implementation)
+*/
+
 #include "AutoTrigger.h"
 
 void AutoTrigger::AutoTriggerTick(void * context) {

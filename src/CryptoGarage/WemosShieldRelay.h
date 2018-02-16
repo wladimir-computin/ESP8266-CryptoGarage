@@ -1,7 +1,9 @@
 /*
 * CryptoGarage - WemosShieldRelay
+* 
 * Class for controlling the relay shield of a Wemos D1 Mini (Pro)
 */
+
 #ifndef WEMOSSHIELDRELAY_H
 #define WEMOSSHIELDRELAY_H
 

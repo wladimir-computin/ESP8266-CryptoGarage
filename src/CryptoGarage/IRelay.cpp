@@ -1,11 +1,12 @@
 /*
 * CryptoGarage - IRelay
+* 
 * (implementation)
 */
 
+#include "AllConfig.h"
 #include "IRelay.h"
 
-const int TRIGGER_TIME_MS = 250;
 
 void IRelay::relayTickerTick(void * context){
   (*(IRelay*)context).setState(false);
@@ -13,6 +14,6 @@ void IRelay::relayTickerTick(void * context){
 
 void IRelay::trigger(){
   setState(true);
-  relayTicker.once_ms(TRIGGER_TIME_MS, relayTickerTick, (void*)this); //call setState(false) after [TRIGGER_TIME_MS] milliseconds passed.
+  relayTicker.once_ms(RELAY_TRIGGER_TIME_MS, relayTickerTick, (void*)this); //call setState(false) after [RELAY_TRIGGER_TIME_MS] milliseconds passed.
 }
 

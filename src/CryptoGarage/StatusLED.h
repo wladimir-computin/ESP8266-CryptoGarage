@@ -1,8 +1,8 @@
 /*
   CryptoGarage - StausLED
+  
   Class for controlling the builtin LED
 */
-
 
 #ifndef StatusLED_H
 #define StatusLED_H
@@ -20,11 +20,9 @@ class StatusLED {
 
 
   private:
-    StatusLED() {}           // verhindert, dass ein Objekt von außerhalb von N erzeugt wird.
-    // protected, wenn man von der Klasse noch erben möchte
-    StatusLED( const StatusLED& ); /* verhindert, dass eine weitere Instanz via
-                      Kopier-Konstruktor erstellt werden kann */
-    StatusLED & operator = (const StatusLED &); //Verhindert weitere Instanz durch Kopie
+    StatusLED() {}           
+    StatusLED( const StatusLED& );
+    StatusLED & operator = (const StatusLED &);
 
     struct Argument {
       int time_ms;

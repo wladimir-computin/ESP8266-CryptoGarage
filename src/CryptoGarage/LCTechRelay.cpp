@@ -1,9 +1,11 @@
 /*
 * CryptoGarage - LCTechRelay
+* 
 * (implementation)
 */
 
 #include "LCTechRelay.h"
+
 void LCTechRelay::setState(bool state){
   if(state == true){
     blankPadding(10);

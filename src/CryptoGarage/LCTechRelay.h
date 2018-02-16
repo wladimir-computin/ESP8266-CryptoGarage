@@ -1,5 +1,6 @@
 /*
 * CryptoGarage - LCTechRelay
+* 
 * Class for controlling the LC-Tech Relay shield for ESP-01(S).
 * This relay is not controlled by a digital pin, but instead it has it's own serial chip which listens on 9600 baud for a specific byte code sequence.
 * (Chinese documentation really sucks)
