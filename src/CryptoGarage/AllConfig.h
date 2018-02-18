@@ -8,10 +8,10 @@
 #ifndef ALLCONFIG
 #define ALLCONFIG
 
-  #define DEBUG 1   //Enable debug output. If you have a LCTech relay, you must disable this or the relay won't work.
-  #define RELAYLCTECH 0   //either this
-  #define RELAYWEMOS 1    //or that
-  #define ENABLE_STATUS_LED 1   //Works only if the builtin LED is not connected to the same pin as the relay. Disable when using ESP-01(s) with LCTech relay
+  #define DEBUG 0   //Enable debug output. If you have a LCTech relay, you must disable this or the relay won't work.
+  #define RELAYLCTECH 1   //either this
+  #define RELAYWEMOS 0    //or that
+  #define ENABLE_STATUS_LED 0   //Works only if the builtin LED is not connected to the same pin as the relay. Disable when using ESP-01(s) with LCTech relay
 
   const int TCP_SERVER_PORT = 4646;
   const int HTTP_OTA_PORT = 8266;
@@ -28,6 +28,6 @@
   const char DEFAULT_WIFIPASS[] = "12345670";
   const char DEFAULT_DEVICEPASS[] = "TestTest1";
 
-  const char FW_VERSION[] = "3.22";
+  const char FW_VERSION[] = "3.23";
 
 #endif

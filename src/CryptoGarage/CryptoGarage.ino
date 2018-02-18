@@ -1,7 +1,7 @@
 /*
 * CryptoGarage
 * 
-* A pracitcal example of a secure IOT device. (still really rare nowadays!)
+* A pracitcal example of a secure IOT device. (still rare nowadays!)
 * 
 * CryptoGarage uses a challenge-response system over TCP based on AES-GCM and SHA256 for key generation.
 * Challenge-response has some major benefits over a rolling code bases exchange, for example
@@ -14,7 +14,7 @@
 * HELLO message of the client and try to brute force it. Since we are using AES256 in GCM-mode this
 * should take plenty of time and breaking into the garage using dynamite is faster. As always, you MUST
 * choose a strong password, 123456 won't last that long. BTW, keep in mind that physical access to the
-* device renders any software security unusable. 
+* device renders any software security useless. 
 * 
 * I personally use CryptoGarage in AP-Mode, not connected to the internet. But I designed the system
 * to be secure independent of the surrounding network. Exposing it as a client to the homenetwork should be fine.
@@ -52,6 +52,7 @@
 #include "GarageGate.h"
 #include "ConnectionState.h"
 #include "RateLimit.h"
+#include "Message.h"
 #if ENABLE_STATUS_LED == 1
   #include "StatusLED.h"
 #endif
@@ -87,12 +88,9 @@ WiFiServer server(TCP_SERVER_PORT);
 //TCP Client, global because we want to keep tcp connections between loops alive
 WiFiClient client;
 
-//Our TCP messages are either plain ACK without data,
-// ERR with error message string or encrypted DATA
-enum ProcessMessageResponse {ACK, ERR, DATA};
 
 struct ProcessMessageStruct{
-  ProcessMessageResponse responseCode;
+  MessageType responseCode;
   String responseData;
   bool noRateLimit;
 };
@@ -121,7 +119,7 @@ ESP8266HTTPUpdateServer httpUpdater;
 bool update_mode = false;
 
 //Communication specific stuff
-Crypto crypt;
+Crypto &crypt = Crypto::instance();
 PersistentMemory mem;
 ConnectionState connectionState;
 RateLimit rateLimit;
@@ -200,7 +198,7 @@ void initHardware() {
 //Here's the entrypoint.
 void setup() {
   initHardware();
-  printDebug("Loading Firmware: " + String(FW_VERSION));
+  printDebug("\nLoading Firmware: " + String(FW_VERSION));
   loadSettings();
   initCrypt();
   setupWiFi();
@@ -252,34 +250,15 @@ String unwrap(String &message) { //REGEX: \[BEGIN\]\s*(.{0,200}?)\s*\[END\]
   return out;
 }
 
-//unencrypted ACKnowlegde
-String prepareACK() {
-  String response = wrap(String(RESPONSE_OK) + ":::");
-  return response;
-}
-
-//unencrypted error
-String prepareError(String reason) {
-  String response = wrap(String(RESPONSE_ERROR) + ":::" + reason);
-  return response;
-}
-
-//encrypted data
-String prepareData(String data) {
-    String response = wrap(String(RESPONSE_DATA) + ":" + data);
-  return response;
-}
-
 //Here we process the plaintext commands and generate an answer for the client.
 ProcessMessageStruct processMessage(String &message) {
   
-  if (message == COMMAND_HELLO) {
-    printDebug(message);
+  if (message == COMMAND_HELLO) {;
     return {ACK, "", true};
   }
 
   if (message == COMMAND_TRIGGER) {
-    printDebug(message);
+    printDebug("Trigger Relay!");
     if (autoTrigger.isActive()) {
       autoTrigger.disengage();
     }
@@ -288,9 +267,8 @@ ProcessMessageStruct processMessage(String &message) {
   }
 
   if (message == COMMAND_TRIGGER_AUTO) {
-    printDebug(message);
     if (!autoTrigger.isActive()) {
-      triggerRelay();
+      //triggerRelay();
       autoTrigger.engage();
     } else {
       autoTrigger.disengage();
@@ -316,7 +294,7 @@ ProcessMessageStruct processMessage(String &message) {
   }
 
   if (message == COMMAND_REBOOT) {
-    printDebug(message);
+    printDebug("Rebooting...");
     ESP.restart();
     return {ACK, ""}; //this will never reach the client, whatever.
   }
@@ -338,18 +316,20 @@ ProcessMessageStruct processMessage(String &message) {
   }
 
   if (message == COMMAND_SAVE) {
-    printDebug(message);
+    printDebug("Saving settings!");
     mem.commit();
     return {ACK, ""};
   }
 
   if (message == COMMAND_RESET){
+    printDebug("Clearing PMEM!");
     mem.clearEEPROM(MEM_FIRST, MEM_LAST);
     return {ACK, ""};
   }
 
   if (message == COMMAND_UPDATE){
     if(!update_mode) {
+      printDebug("Enabling Updatemode!");
       httpUpdater.setup(&httpUpdateServer, UPDATE_PATH);
       httpUpdateServer.begin();
       update_mode = true;
@@ -367,37 +347,18 @@ ProcessMessageStruct processMessage(String &message) {
 String receive_Data(WiFiClient &client) {
   if (client.available()) {
     String httpMessage = client.readStringUntil('\r');
-    printDebug("\nReceived:\n" + httpMessage + "\n");
+    printDebug("\nReceived:\n" + httpMessage);
     String body = unwrap(httpMessage);
-    printDebug("Message: " + body);
     return body;
   }
   return "";
 }
 
 void send_Data(WiFiClient &client, String data) {
+  data = wrap(data);
   printDebug("\nSending:\n" + data + "\n");
   client.print(data + "\r\n");
   client.flush();
-}
-
-String encryptToMessage(uint8_t iv[], uint8_t message[], int iv_len, int message_len){
-  String iv_challenge_b64 = crypt.bytesToBase64(message, message_len);
-  uint8_t encryptedMessage[message_len];
-  uint8_t tag[AES_GCM_TAG_LEN];
-  crypt.encryptData(message, message_len, iv, tag, encryptedMessage);
-  String iv_b64 = crypt.bytesToBase64(iv, iv_len);
-  String tag_b64 = crypt.bytesToBase64(tag, sizeof(tag));
-  String encryptedMessage_b64 = crypt.bytesToBase64(encryptedMessage, sizeof(encryptedMessage));
-  
-  return iv_b64 + ":" + tag_b64 + ":" + encryptedMessage_b64;
-}
-
-String decryptToMessage(String encryptedMessage_b64, uint8_t iv[], uint8_t tag[]){
-  uint8_t encryptedMessage[crypt.base64DecodedLength(encryptedMessage_b64)];
-  crypt.base64ToBytes(encryptedMessage_b64, encryptedMessage);
-  
-  return crypt.decryptData(encryptedMessage, sizeof(encryptedMessage), iv, tag);
 }
 
 void stopClient(WiFiClient &client){
@@ -407,10 +368,8 @@ void stopClient(WiFiClient &client){
 
 uint8_t iv_challenge[AES_GCM_IV_LEN]; //global, because we need to preserve the value between loops.
 
-//  Message structure:
-//  [MESSAGE_BEGIN] CODE : b64(IV) : b64(TAG) : b64(enc(DATA, IV)) [MESSAGE_END]
-
 void doTCPServerStuff() {
+  
   if(!client || !client.connected()){ //garbage collection
     if(client){
       client.stop();
@@ -427,101 +386,64 @@ void doTCPServerStuff() {
 
     String s = receive_Data(client);
     
-    if(s != ""){
-      int deli1 = s.indexOf(":");
-      int deli2 = s.indexOf(":", deli1 + 1);
-      int deli3 = s.indexOf(":", deli2 + 1);
+    if(s != "") {
 
-      if (deli1 != -1 && deli2 != -1 && deli3 != -1) { //Check if message is formed correctly.
-        
-          uint8_t iv[AES_GCM_IV_LEN];
-          uint8_t tag[AES_GCM_TAG_LEN];
-          String iv_b64;
-          String tag_b64;
-          String encryptedMessage_b64;
-          
-          iv_b64 = s.substring(deli1 + 1, deli2);
-          tag_b64 = s.substring(deli2 + 1, deli3);
-          encryptedMessage_b64 = s.substring(deli3 + 1);
+      Msg message; //Msg defined in Message.h
       
-          if (crypt.base64DecodedLength(tag_b64) == AES_GCM_TAG_LEN) { //AES-GCM Tag
-              crypt.base64ToBytes(tag_b64, tag);
-              printDebug("Got TAG: " + tag_b64);
-          } else {
-              printDebug("TAG not ok!");
-              send_Data(client, prepareError("Nope!"));
-              stopClient(client);
-              return;
-          }
-      
-          switch (connectionState.getState()) {
-            case NONE:
-                printDebug("Got IV: " + iv_b64);
-                if (crypt.base64DecodedLength(iv_b64) == AES_GCM_IV_LEN) {//AES-GCM IV
-                    crypt.base64ToBytes(iv_b64, iv);
-                } else {
-                    printDebug("IV not ok!");
-                    send_Data(client, prepareError("Nope!"));
-                    stopClient(client);
-                    return;
-                }
-                break;
-        
-            case PHASE2:
-              memcpy(iv, iv_challenge, sizeof(iv));
-              break;
-          }
+      switch(connectionState.getState()){
+        case NONE:
+          message = Message::decrypt(s, NULL); //IV is inside s
+        break;
+        case PHASE2:
+          message = Message::decrypt(s, iv_challenge); //s doesn't contains the IV as it was send as challenge secret in the previous message
+        break;
+      }
 
-          
-          String message = decryptToMessage(encryptedMessage_b64, iv, tag); //returns "" if decryption fails
-          printDebug("Decrypted message: " + message);
       
-          switch (connectionState.getState()) {
+      if (message.type == DATA){
+     
+        switch (connectionState.getState()) {
           case NONE:
-              if (message == COMMAND_HELLO) {
-                  crypt.getRandomIV(iv);
-                  crypt.getRandomIV(iv_challenge);
-                  
-                  send_Data(client, prepareData(encryptToMessage(iv, iv_challenge, sizeof(iv), sizeof(iv_challenge))));
-                  connectionState.setState(PHASE2);
-              } else {
-                  send_Data(client, prepareError("Y u no greet me?!"));
-                  stopClient(client);
-              }
-              break;
+            if (message.data == COMMAND_HELLO) {
+              printDebug("Sending IV challenge");
+              crypt.getRandomIV(iv_challenge); //preparing random challenge secret
+              send_Data(client, Message::encrypt(DATA, iv_challenge, sizeof(iv_challenge)));
+              //sending encrypted challenge IV to client, the client has to prove its knowledge of the correct password by encrypting the next
+              //message with the passsword + the decrypted challenge IV.
+              connectionState.setState(PHASE2); //the client has only a certain amount of time to answer
+            } else {
+              send_Data(client, Message::encrypt(ERR, "Y u no greet me?!"));
+              stopClient(client); //the client didn't know how to talk to us.
+            }
+          break;
       
           case PHASE2:
-            connectionState.setState(NONE);
-            ProcessMessageStruct ret = processMessage(message);
-            switch (ret.responseCode) {
-              case ACK:
-                  send_Data(client, prepareACK());
-              break;
-              
-              case DATA:
-                  crypt.getRandomIV(iv);
-                  send_Data(client, prepareData(encryptToMessage(iv, (uint8_t*)ret.responseData.c_str(), sizeof(iv), strlen(ret.responseData.c_str())))); 
-              break;
-              
-              case ERR:
-                  send_Data(client, prepareError(ret.responseData));
-              break;
-            }
+            connectionState.setState(NONE); //the client send a correctly encrypted second message.
+            ProcessMessageStruct ret = processMessage(message.data); //process his data
+            send_Data(client, Message::encrypt(ret.responseCode, ret.responseData)); //send answer
+
+            //for some messages (like setSettings) we know that the client may send a following one very quickly.
+            //other messages (like trigger) shouldn't be called that quickly.
             if(!ret.noRateLimit){
               stopClient(client);
             }
+
+            printDebug("-------------------------------");
           break;
           }
       } else {
-          send_Data(client, prepareError("Nope!"));
-          stopClient(client);
-          return;
+        printDebug("Decryption failed!");
+        send_Data(client, Message::encrypt(ERR,"Nope!"));
+        stopClient(client);
       }
+    } else {
+//      if (client){
+//        send_Data(client, Message::encrypt(ERR,"Nope!"));
+//        stopClient(client);
+//      }
     }
   } else {
-    if(client){
-      client.stop();
-    }
+    client.stop();
   }
 }
 

@@ -31,6 +31,10 @@
 class Crypto {
   
   private:
+      Crypto() {}
+      Crypto( const Crypto& );
+      Crypto & operator = (const Crypto &);
+  
       uint8_t shaKey[32];
 
       void generateSHA256Key(String devicepass);
@@ -65,6 +69,12 @@ class Crypto {
 
       //get base64(SHA256(devicepass)) as String
       String getShaKey_b64();
+
+      static Crypto& instance() {
+        static Crypto _instance;
+        return _instance;
+      }
+      ~Crypto() {}
 };
  
 #endif

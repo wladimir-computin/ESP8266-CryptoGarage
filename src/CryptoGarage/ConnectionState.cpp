@@ -13,13 +13,14 @@ void ConnectionState::conStateTick(void * context) {
 void ConnectionState::setState(ConState con) {
   switch (con) {
     case NONE:
+      conStateTicker.detach();
       printDebug("ConnectionState: NONE");
       conState = NONE;
       break;
     case PHASE2:
       printDebug("ConnectionState: PHASE2");
       if (conState != PHASE2) {
-        conStateTicker.once(CONNECTION_STATE_TIMEOUT, conStateTick, (void*)this);
+        conStateTicker.attach(CONNECTION_STATE_TIMEOUT, conStateTick, (void*)this);
         conState = PHASE2;
       }
       break;
