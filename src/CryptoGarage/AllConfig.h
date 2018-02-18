@@ -8,7 +8,7 @@
 #ifndef ALLCONFIG
 #define ALLCONFIG
 
-  #define DEBUG 0   //Enable debug output. If you have a LCTech relay, you must disable this or the relay won't work.
+  #define DEBUG 1   //Enable debug output. If you have a LCTech relay, you must disable this or the relay won't work.
   #define RELAYLCTECH 1   //either this
   #define RELAYWEMOS 0    //or that
   #define ENABLE_STATUS_LED 0   //Works only if the builtin LED is not connected to the same pin as the relay. Disable when using ESP-01(s) with LCTech relay

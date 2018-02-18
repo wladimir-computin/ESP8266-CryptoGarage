@@ -35,6 +35,7 @@
 */
 
 //Build configuration
+#include "TCPCleanup.h"
 #include "AllConfig.h"
 
 //OTA Update
@@ -263,6 +264,7 @@ ProcessMessageStruct processMessage(String &message) {
       autoTrigger.disengage();
     }
     triggerRelay();
+    printDebug("Free HEAP: " + String(ESP.getFreeHeap()));
     return {ACK, ""};
   }
 
@@ -364,6 +366,8 @@ void send_Data(WiFiClient &client, String data) {
 void stopClient(WiFiClient &client){
   rateLimit.setState(BLOCKED);
   client.stop();
+  yield();
+  tcpCleanup();
 }
 
 uint8_t iv_challenge[AES_GCM_IV_LEN]; //global, because we need to preserve the value between loops.
@@ -410,7 +414,7 @@ void doTCPServerStuff() {
               send_Data(client, Message::encrypt(DATA, iv_challenge, sizeof(iv_challenge)));
               //sending encrypted challenge IV to client, the client has to prove its knowledge of the correct password by encrypting the next
               //message with the passsword + the decrypted challenge IV.
-              connectionState.setState(PHASE2); //the client has only a certain amount of time to answer
+              connectionState.setState(PHASE2); //the client has only a certain amount of time to answer (and only one guess.)
             } else {
               send_Data(client, Message::encrypt(ERR, "Y u no greet me?!"));
               stopClient(client); //the client didn't know how to talk to us.
