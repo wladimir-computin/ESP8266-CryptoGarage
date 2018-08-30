@@ -3,6 +3,10 @@
 
 TODO: Description
 
+## Encryption scheme ##
+![Networkcommunication between client and server](https://github.com/wladimir-computin/Android-CryptoGarage/raw/master/doc/Flow.png)
+
+
 ## Usage ##
 
 TODO: Create Wiki
