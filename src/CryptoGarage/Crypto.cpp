@@ -7,15 +7,24 @@
 #include "Crypto.h"
 
 void Crypto::init(String devicepass){
-  generateSHA256Key(devicepass);
+  keyDerivationFunction(devicepass);
 }
 
-void Crypto::generateSHA256Key(String devicepass) {
-  printDebug("Generating SHA256-Key");
-  SHA256 sha256;
-  sha256.update(devicepass.c_str(), devicepass.length());
-  sha256.finalize(shaKey, sizeof(shaKey));
-  printDebug("SHA256-Key=" + getShaKey_b64());
+void Crypto::keyDerivationFunction(String devicepass) { //bcrypt would be better, but I haven't found any implementation for Arduino/ESP yet.
+  printDebug("Generating AES256-Key");
+  SHA512 sha512;
+  String salted = devicepass + KEY_SALT;
+  uint8_t sha512hash[sha512.hashSize()];
+  sha512.update(salted.c_str(), salted.length());
+  sha512.finalize(sha512hash, sizeof(sha512hash));
+  for(int i = 0; i < SHA_ROUNDS; i++){
+    sha512.reset();
+    sha512.update(sha512hash, sizeof(sha512hash));
+    sha512.finalize(sha512hash, sizeof(sha512hash));
+  }
+  memcpy(aesKey, sha512hash, 32);
+  
+  printDebug("AES256-Key=" + getAES256Key_b64());
 }
 
 void Crypto::getRandomIV(uint8_t * iv){
@@ -30,7 +39,7 @@ void Crypto::encryptData(String &data, uint8_t * iv, uint8_t * tag, uint8_t * ou
 
 void Crypto::encryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out) {
   GCM<AES256> gcm;
-  gcm.setKey(shaKey, sizeof(shaKey));
+  gcm.setKey(aesKey, sizeof(aesKey));
   gcm.setIV(iv, AES_GCM_IV_LEN);
   gcm.encrypt(out, data, dataLen);
   gcm.computeTag(tag, AES_GCM_TAG_LEN);
@@ -38,7 +47,7 @@ void Crypto::encryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * ta
 
 void Crypto::decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out) {
   GCM<AES256> gcm;
-  gcm.setKey(shaKey, sizeof(shaKey));
+  gcm.setKey(aesKey, sizeof(aesKey));
   gcm.setIV(iv, AES_GCM_IV_LEN);
   gcm.decrypt(out, data, dataLen);
   if (!gcm.checkTag(tag, AES_GCM_TAG_LEN)) { //data corrupted or tampered, throw away!
@@ -67,11 +76,10 @@ uint16_t Crypto::base64DecodedLength(String &b64){
   return base64.decodedLength((char*)b64.c_str(), b64.length());
 }
 
-const uint8_t * Crypto::getShaKey(){
-  return shaKey;
+const uint8_t * Crypto::getAES256Key(){
+  return aesKey;
 }
 
-String Crypto::getShaKey_b64(){
-  return bytesToBase64(shaKey, sizeof(shaKey));
+String Crypto::getAES256Key_b64(){
+  return bytesToBase64(aesKey, sizeof(aesKey));
 }
-

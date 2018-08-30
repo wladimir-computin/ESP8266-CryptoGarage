@@ -21,7 +21,7 @@
 
 #include <GCM.h>
 #include <AES.h>
-#include <SHA256.h>
+#include <SHA512.h>
 #include <ESP8266TrueRandom.h>
 
 #include "AllConfig.h"
@@ -34,10 +34,10 @@ class Crypto {
       Crypto() {}
       Crypto( const Crypto& );
       Crypto & operator = (const Crypto &);
-  
-      uint8_t shaKey[32];
 
-      void generateSHA256Key(String devicepass);
+      uint8_t aesKey[32];
+
+      void keyDerivationFunction(String devicepass);
 
    
   public:
@@ -65,10 +65,10 @@ class Crypto {
       uint16_t base64DecodedLength(String &b64);
 
       //get SHA256(devicepass) as byte array
-      const uint8_t * getShaKey();
+      const uint8_t * getAES256Key();
 
       //get base64(SHA256(devicepass)) as String
-      String getShaKey_b64();
+      String getAES256Key_b64();
 
       static Crypto& instance() {
         static Crypto _instance;

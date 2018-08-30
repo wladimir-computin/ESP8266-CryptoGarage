@@ -34,7 +34,7 @@ class StatusLED {
 
     Ticker ledTicker;
     int current = 0;
-    const int ledPin = BUILTIN_LED;
+    const int ledPin = LED_BUILTIN;
     Argument argument = {0,0,0,0,NONE};
     static void ledTickerTick(void * callback);
     void ledTickerTick2();

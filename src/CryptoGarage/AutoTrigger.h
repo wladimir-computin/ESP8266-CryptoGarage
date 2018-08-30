@@ -32,17 +32,17 @@ class AutoTrigger {
     bool active = false;
     bool finished = false;
     int tickerCount = 0;
-    int tickerGoal = 10;
     #if ENABLE_STATUS_LED == 1
       StatusLED &led = StatusLED::instance();
     #endif
       
   public:
+      int tickerEnd = AUTOTRIGGER_TIMEOUT_DEFAULT; //Defined in Config.h
       void engage();
       void disengage();
       bool isActive();
       bool isFinished();
-      void setGoal(int goal);
+      void setEnd(int seconds);
       void resetCounter();
 };
 

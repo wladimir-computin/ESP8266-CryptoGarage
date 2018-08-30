@@ -1,3 +1,6 @@
+//dirty fix to prevent running out of heap when an attacker sends
+//sends many TCP packets very quickly, thus creating multiple TCP connections.
+
 #ifndef TCPCLEANUP_H
 #define TCPCLEANUP_H
 

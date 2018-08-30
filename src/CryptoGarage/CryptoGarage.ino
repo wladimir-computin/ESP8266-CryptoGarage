@@ -4,10 +4,10 @@
 * A pracitcal example of a secure IOT device. (still rare nowadays!)
 * 
 * CryptoGarage uses a challenge-response system over TCP based on AES-GCM and SHA256 for key generation.
-* Challenge-response has some major benefits over a rolling code bases exchange, for example
+* Challenge-response has some major benefits over a rolling code based exchange, for example
 * immunity to replay-attacks and easy managment of multiple remote devices, in our case smartphones.
 * 
-* CryptoGarage *should* be equally or more secure than any comparable commercially available system.
+* CryptoGarage *should* be at least equally or more secure than any comparable commercially available system.
 * It isn't relying on any closed source / hidden algorithms. (Except for the hardware random generator in
 * our ESP8266 for IV generation, which seems to be fine but that's the problem with random, you never know for sure.)
 * Replay attacks are not possible and AFAIK the "best" way to get the key is to caputure the encrypted
@@ -19,7 +19,7 @@
 * I personally use CryptoGarage in AP-Mode, not connected to the internet. But I designed the system
 * to be secure independent of the surrounding network. Exposing it as a client to the homenetwork should be fine.
 * Even exposing it to the internet should work (however persistent denial-of-service attacks may
-* render it unusable.) But I wouldn't recommend to make *any IOT* accessible from the internet without VPN.
+* render it unusable.) But I wouldn't recommend to make *any* IOT accessible from the internet without VPN.
 * 
 * I DO NOT GUARANTEE ANYTHING!
 * If hackers break into your garage and steal your fancy car, I won't buy you a new one.
@@ -181,7 +181,7 @@ void loadSettings() {
   printDebug("Loaded WIFIPASS: " + WIFIPASS);
 
   if (mem.readBoolFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT_SET) == true) {
-    autoTrigger.setGoal(mem.readIntFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT));
+    autoTrigger.setEnd(mem.readIntFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT));
   }
 }
 
@@ -204,6 +204,7 @@ void setup() {
   initCrypt();
   setupWiFi();
   server.begin();
+  printDebug("Free HEAP: " + String(ESP.getFreeHeap()));
   printDebug("Bootsequence finished!\n");
   #if ENABLE_STATUS_LED == 1
     led.fade(StatusLED::SINGLE_ON_OFF, 2000);
@@ -264,7 +265,6 @@ ProcessMessageStruct processMessage(String &message) {
       autoTrigger.disengage();
     }
     triggerRelay();
-    printDebug("Free HEAP: " + String(ESP.getFreeHeap()));
     return {ACK, ""};
   }
 
@@ -287,11 +287,13 @@ ProcessMessageStruct processMessage(String &message) {
   }
 
   if (message == COMMAND_GET_STATUS){
-    String data = "autotrigger:" + String(autoTrigger.isActive()) + "\n" +
-                  "ratelimit:" + RATE_LIMIT_TIMEOUT_MS + "\n" +
-                  "relaystate:" + String(relay.getState()) + "\n" +
-                  "updatemode:" + String(update_mode) + "\n" +
-                  "FW-Version: " + FW_VERSION;
+    String data = "FW-Version: " + String(FW_VERSION) + "\n\n" +
+                  "Autotrigger engaged: " + String(autoTrigger.isActive()) + "\n" +
+                  "Autotrigger timeout: " + String(autoTrigger.tickerEnd) + "\n" +
+                  "Ratelimit: " + RATE_LIMIT_TIMEOUT_MS + "\n" +
+                  "Relaystate: " + String(relay.getState()) + "\n" +
+                  "Updatemode: " + String(update_mode) + "\n" +
+                  "Free HEAP: " + String(ESP.getFreeHeap());
     return {DATA, data, true};
   }
 

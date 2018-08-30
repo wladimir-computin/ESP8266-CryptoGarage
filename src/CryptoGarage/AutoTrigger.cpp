@@ -12,8 +12,8 @@ void AutoTrigger::AutoTriggerTick(void * context) {
 
 void AutoTrigger::AutoTriggerTickStuff(){
   tickerCount++;
-  printDebug("AutoTrigger: " + String(tickerGoal - tickerCount));
-  if(tickerCount >= tickerGoal){
+  printDebug("AutoTrigger: " + String(tickerEnd - tickerCount));
+  if(tickerCount >= tickerEnd){
     finished = true;
     disengage();
   }
@@ -49,9 +49,9 @@ bool AutoTrigger::isFinished(){
   return temp;
 }
 
-void AutoTrigger::setGoal(int goal){
-  tickerGoal = goal;
-  printDebug("Loaded Autotrigger Timeout: " + String(goal, DEC));
+void AutoTrigger::setEnd(int seconds){
+  tickerEnd = seconds;
+  printDebug("Loaded Autotrigger Timeout: " + String(seconds, DEC));
 }
 
 void AutoTrigger::resetCounter(){
