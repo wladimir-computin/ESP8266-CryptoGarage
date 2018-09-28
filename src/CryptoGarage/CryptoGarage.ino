@@ -54,6 +54,7 @@
 #include "ConnectionState.h"
 #include "RateLimit.h"
 #include "Message.h"
+#include "Uptime.h"
 #if ENABLE_STATUS_LED == 1
   #include "StatusLED.h"
 #endif
@@ -109,6 +110,7 @@ struct ProcessMessageStruct{
 #if ENABLE_STATUS_LED == 1
   StatusLED &led = StatusLED::instance();
 #endif
+Uptime &uptime = Uptime::instance();
 
 //Garage specific stuff
 AutoTrigger autoTrigger;
@@ -186,14 +188,14 @@ void loadSettings() {
 }
 
 void initHardware() {
-#if DEBUG == 1 //defined in AllConfig.h
-  Serial.begin(115200);
-  printDebug("Device running in Debug-Mode!");
-#else
-  #if RELAYLCTECH == 1
-    Serial.begin(9600); //The LCTech relay needs serial at 9600 baud.
+  #if DEBUG == 1 //defined in AllConfig.h
+    Serial.begin(115200);
+    printDebug("Device running in Debug-Mode!");
+  #else
+    #if RELAYLCTECH == 1
+      Serial.begin(9600); //The LCTech relay needs serial at 9600 baud.
+    #endif
   #endif
-#endif
 }
 
 //Here's the entrypoint.
@@ -205,11 +207,11 @@ void setup() {
   setupWiFi();
   server.begin();
   printDebug("Free HEAP: " + String(ESP.getFreeHeap()));
-  printDebug("Bootsequence finished!\n");
+  printDebug("Bootsequence finished in " + String(millis()) + "ms" + "!\n");
+  uptime.start();
   #if ENABLE_STATUS_LED == 1
     led.fade(StatusLED::SINGLE_ON_OFF, 2000);
   #endif
-  
 }
 
 void triggerRelay() {
@@ -289,11 +291,12 @@ ProcessMessageStruct processMessage(String &message) {
   if (message == COMMAND_GET_STATUS){
     String data = "FW-Version: " + String(FW_VERSION) + "\n\n" +
                   "Autotrigger engaged: " + String(autoTrigger.isActive()) + "\n" +
-                  "Autotrigger timeout: " + String(autoTrigger.tickerEnd) + "\n" +
-                  "Ratelimit: " + RATE_LIMIT_TIMEOUT_MS + "\n" +
+                  "Autotrigger timeout: " + String(autoTrigger.tickerEnd) + "s" + "\n" +
+                  "Ratelimit: " + RATE_LIMIT_TIMEOUT_MS + "ms" + "\n" +
                   "Relaystate: " + String(relay.getState()) + "\n" +
                   "Updatemode: " + String(update_mode) + "\n" +
-                  "Free HEAP: " + String(ESP.getFreeHeap());
+                  "Free HEAP: " + String(ESP.getFreeHeap()) + "Byte" + "\n" +
+                  "Uptime: " + uptime.getUptime();
     return {DATA, data, true};
   }
 
@@ -369,7 +372,6 @@ void stopClient(WiFiClient &client){
   rateLimit.setState(BLOCKED);
   client.stop();
   yield();
-  tcpCleanup();
 }
 
 uint8_t iv_challenge[AES_GCM_IV_LEN]; //global, because we need to preserve the value between loops.
@@ -442,14 +444,11 @@ void doTCPServerStuff() {
         send_Data(client, Message::encrypt(ERR,"Nope!"));
         stopClient(client);
       }
-    } else {
-//      if (client){
-//        send_Data(client, Message::encrypt(ERR,"Nope!"));
-//        stopClient(client);
-//      }
     }
   } else {
     client.stop();
+    yield();
+    tcpCleanup();
   }
 }
 
