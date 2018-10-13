@@ -21,21 +21,31 @@ enum MemMap {
   MEM_DEV_PASS = MEM_FIRST + 0,
   MEM_WIFI_SSID = MEM_DEV_PASS + 65, //the numbers are offsets in bytes
   MEM_WIFI_PASS = MEM_WIFI_SSID + 33,
-  MEM_AUTOTRIGGER_TIMEOUT = MEM_WIFI_PASS + 64,
+  MEM_WIFI_MODE = MEM_WIFI_PASS + 64,
+  MEM_AUTOTRIGGER_TIMEOUT = MEM_WIFI_MODE + 1,
   MEM_DEV_PASS_SET = MEM_AUTOTRIGGER_TIMEOUT + 2,
   MEM_WIFI_SSID_SET = MEM_DEV_PASS_SET + 1,
   MEM_WIFI_PASS_SET = MEM_WIFI_SSID_SET + 1,
-  MEM_AUTOTRIGGER_TIMEOUT_SET = MEM_WIFI_PASS_SET + 1,
+  MEM_WIFI_MODE_SET = MEM_WIFI_PASS_SET + 1,
+  MEM_AUTOTRIGGER_TIMEOUT_SET = MEM_WIFI_MODE_SET + 1,
   MEM_LAST = MEM_AUTOTRIGGER_TIMEOUT_SET + 2
+  
 };
  
 class PersistentMemory {
   private:
     const size_t BYTES = 512; //Size of EEPROM reserved memory. More than enough.
+    PersistentMemory();         
+    PersistentMemory( const PersistentMemory& );
+    PersistentMemory & operator = (const PersistentMemory &);
     
   public:
 
-    void init();
+    static PersistentMemory& instance() {
+      static PersistentMemory _instance;
+      return _instance;
+    }
+    ~PersistentMemory();
 
     void clearEEPROM(enum MemMap start_index, enum MemMap end_index);
     void commit();

@@ -23,9 +23,18 @@ const char TYPE_ACK[] = "OK";
 const char TYPE_DATA[] = "DATA";
 const char TYPE_ERR[] = "FAIL";
 
+const char MESSAGE_BEGIN[] = "[BEGIN]";
+const char MESSAGE_END[] = "[END]";
+
 struct Msg {
   MessageType type;
   String data;
+};
+
+struct ProcessMessageStruct{
+  MessageType responseCode;
+  String responseData;
+  bool noRateLimit;
 };
 
 class Message {
@@ -38,8 +47,9 @@ class Message {
     static String encrypt(MessageType type, const char * data);
     static String encrypt(MessageType type, uint8_t * data, int data_len);
     static Msg decrypt(String &s, uint8_t * iv);
+    static String wrap(String &in);
+    static String unwrap(String &in);
     //static bool decrypt(String &raw, uint8_t (&iv)[AES_GCM_IV_LEN], uint8_t * out);
 };
 
 #endif
-

@@ -49,7 +49,7 @@ class Crypto {
       void getRandomIV(uint8_t * iv);
 
       //encrypt a String, using an IV and writes the tag into tag and the encrypted byte array into out
-      void encryptData(String &data, uint8_t * iv, uint8_t * tag, uint8_t * out);
+      void encryptData(const String &data, uint8_t * iv, uint8_t * tag, uint8_t * out);
       
       //encrypt a byte array, using an IV writes the tag into tag and the encrypted byte array into out
       void encryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out);
@@ -61,8 +61,8 @@ class Crypto {
       String decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag);
       
       String bytesToBase64(uint8_t * bytes, int len);
-      void base64ToBytes(String &in, uint8_t * out);
-      uint16_t base64DecodedLength(String &b64);
+      void base64ToBytes(const String &in, uint8_t * out);
+      uint16_t base64DecodedLength(const String &b64);
 
       //get SHA256(devicepass) as byte array
       const uint8_t * getAES256Key();

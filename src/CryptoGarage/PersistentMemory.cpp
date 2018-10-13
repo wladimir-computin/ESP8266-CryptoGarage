@@ -6,8 +6,12 @@
 
 #include "PersistentMemory.h"
 
-void PersistentMemory::init(){
+PersistentMemory::PersistentMemory(){
   EEPROM.begin(BYTES);
+}
+
+PersistentMemory::~PersistentMemory(){
+  EEPROM.end();
 }
 
 void PersistentMemory::clearEEPROM(enum MemMap start_index, enum MemMap end_index) {

@@ -148,3 +148,18 @@ MessageType Message::stringToType(String type) {
   return NOPE;
 }
 
+String Message::wrap(String &message) {
+  return String(MESSAGE_BEGIN) + message + MESSAGE_END;
+}
+
+String Message::unwrap(String &message) { //REGEX: \[BEGIN\]\s*(.{0,200}?)\s*\[END\]
+  String out;
+  int startIndex = message.indexOf(MESSAGE_BEGIN);
+  int endIndex = message.indexOf(MESSAGE_END, startIndex);
+
+  if ((startIndex != -1) && (endIndex != -1) && (endIndex - startIndex <= 200)) {
+    out = message.substring(startIndex + strlen(MESSAGE_BEGIN), endIndex);
+  }
+  out.trim();
+  return out;
+}

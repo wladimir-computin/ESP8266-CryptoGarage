@@ -1,37 +1,37 @@
 /*
-* CryptoGarage
-* 
-* A pracitcal example of a secure IOT device. (still rare nowadays!)
-* 
-* CryptoGarage uses a challenge-response system over TCP based on AES-GCM and SHA256 for key generation.
-* Challenge-response has some major benefits over a rolling code based exchange, for example
-* immunity to replay-attacks and easy managment of multiple remote devices, in our case smartphones.
-* 
-* CryptoGarage *should* be at least equally or more secure than any comparable commercially available system.
-* It isn't relying on any closed source / hidden algorithms. (Except for the hardware random generator in
-* our ESP8266 for IV generation, which seems to be fine but that's the problem with random, you never know for sure.)
-* Replay attacks are not possible and AFAIK the "best" way to get the key is to caputure the encrypted
-* HELLO message of the client and try to brute force it. Since we are using AES256 in GCM-mode this
-* should take plenty of time and breaking into the garage using dynamite is faster. As always, you MUST
-* choose a strong password, 123456 won't last that long. BTW, keep in mind that physical access to the
-* device renders any software security useless. 
-* 
-* I personally use CryptoGarage in AP-Mode, not connected to the internet. But I designed the system
-* to be secure independent of the surrounding network. Exposing it as a client to the homenetwork should be fine.
-* Even exposing it to the internet should work (however persistent denial-of-service attacks may
-* render it unusable.) But I wouldn't recommend to make *any* IOT accessible from the internet without VPN.
-* 
-* I DO NOT GUARANTEE ANYTHING!
-* If hackers break into your garage and steal your fancy car, I won't buy you a new one.
-* 
-* If you find bugs, contact me :)
+  CryptoGarage
+
+  A pracitcal example of a secure IOT device. (still rare nowadays!)
+
+  CryptoGarage uses a challenge-response system over TCP based on AES-GCM and SHA512 for key generation.
+  Challenge-response has some major benefits over a rolling code based exchange, for example
+  immunity to replay-attacks and easy managment of multiple remote devices, in our case smartphones.
+
+  CryptoGarage *should* be at least equally or more secure than any comparable commercially available system.
+  It isn't relying on any closed source / hidden algorithms. (Except for the hardware random generator in
+  our ESP8266 for IV generation, which seems to be fine but that's the problem with random, you never know for sure.)
+  Replay attacks are not possible and AFAIK the "best" way to get the key is to caputure the encrypted
+  HELLO message of the client and try to brute force it. Since we are using AES256 in GCM-mode this
+  should take plenty of time and breaking into the garage using dynamite is faster. As always, you MUST
+  choose a strong password, 123456 won't last that long. BTW, keep in mind that physical access to the
+  device renders any software security useless.
+
+  I personally use CryptoGarage in AP-Mode, not connected to the internet. But I designed the system
+  to be secure independent of the surrounding network. Exposing it as a client to the homenetwork should be fine.
+  Even exposing it to the internet should work (however persistent denial-of-service attacks may
+  render it unusable.) But I wouldn't recommend to make *any* IOT accessible from the internet without VPN.
+
+  I DO NOT GUARANTEE ANYTHING!
+  If someone break into your garage and steals your fancy car, I won't buy you a new one.
+
+  If you find bugs, contact me :)
 */
 
 /*
-* CryptoGarage - Main
-* 
-* Contains the main functionality.
-* Entrypoint is setup()
+  CryptoGarage - Main
+
+  Contains the main functionality.
+  Entrypoint is setup()
 */
 
 //Build configuration
@@ -46,11 +46,9 @@
 #include <ESP8266WiFi.h>
 
 #include "Debug.h"
+#include "Device.h"
 #include "Crypto.h"
 #include "PersistentMemory.h"
-#include "IRelay.h"
-#include "AutoTrigger.h"
-#include "GarageGate.h"
 #include "ConnectionState.h"
 #include "RateLimit.h"
 #include "Message.h"
@@ -59,26 +57,26 @@
   #include "StatusLED.h"
 #endif
 
+#include "Garage.h"
+
 //Default settings
 String WIFISSID = DEFAULT_WIFISSID; //Defined in AllConfig.h
 String WIFIPASS = DEFAULT_WIFIPASS;
 String DEVICEPASS = DEFAULT_DEVICEPASS;
-
-const char MESSAGE_BEGIN[] = "[BEGIN]";
-const char MESSAGE_END[] = "[END]";
+String WIFIMODE = DEFAULT_WIFIMODE;
 
 const char RESPONSE_OK[] = "OK";
 const char RESPONSE_DATA[] = "DATA";
 const char RESPONSE_ERROR[] = "FAIL";
 
 const char COMMAND_HELLO[] = "hellofriend";
-const char COMMAND_TRIGGER[] = "trigger";
-const char COMMAND_TRIGGER_AUTO[] = "autotrigger";
 const char COMMAND_SET_DEVICE_PASS[] = "setDevicePass";
 const char COMMAND_GET_STATUS[] = "getStatus";
 const char COMMAND_SET_WIFI_SSID[] = "setSSID";
 const char COMMAND_SET_WIFI_PASS[] = "setWIFIPass";
+const char COMMAND_SET_WIFI_MODE[] = "setWIFIMode";
 const char COMMAND_SET_AUTOTRIGGER_TIMEOUT[] = "setAutotriggerTimeout";
+const char COMMAND_GET_SETTINGS[] = "getSettings";
 const char COMMAND_SAVE[] = "save";
 const char COMMAND_PING[] = "ping";
 const char COMMAND_REBOOT[] = "reboot";
@@ -90,31 +88,14 @@ WiFiServer server(TCP_SERVER_PORT);
 //TCP Client, global because we want to keep tcp connections between loops alive
 WiFiClient client;
 
-
-struct ProcessMessageStruct{
-  MessageType responseCode;
-  String responseData;
-  bool noRateLimit;
-};
-
-//Device specific stuff
-#if RELAYLCTECH == 1
-  #include "LCTechRelay.h"
-  LCTechRelay relay;  
-#elif RELAYWEMOS == 1
-  #include "WemosShieldRelay.h"
-  WemosShieldRelay relay;
-//#elif
-  //your relay here...
-#endif
 #if ENABLE_STATUS_LED == 1
   StatusLED &led = StatusLED::instance();
 #endif
 Uptime &uptime = Uptime::instance();
 
 //Garage specific stuff
-AutoTrigger autoTrigger;
-GarageGate gateState;
+Garage garage;
+Device * device = &garage;
 
 //OTA update
 ESP8266WebServer httpUpdateServer(HTTP_OTA_PORT);
@@ -123,7 +104,7 @@ bool update_mode = false;
 
 //Communication specific stuff
 Crypto &crypt = Crypto::instance();
-PersistentMemory mem;
+PersistentMemory &mem = PersistentMemory::instance();;
 ConnectionState connectionState;
 RateLimit rateLimit;
 
@@ -141,29 +122,28 @@ ProcessMessageStruct writeSettings(String message, int min_length, int max_lengt
   printDebug("Writing setting: " + String(command) + " : " + setting);
   if (setting.length() >= min_length && setting.length() <= max_length) {
     if (type == "string") {
-      mem.writeStringToEEPROM(addr, 64, setting);
+      mem.writeStringToEEPROM(addr, max_length, setting);
     } else if (type == "int") {
       int i = setting.toInt();
       if (i >= 1 && i <= 9999) {
         mem.writeIntToEEPROM(addr, i);
       } else {
-        return {ERR,"Timeout not in [1,9999]", true};
+        return {ERR, "Timeout not in [1,9999]", true};
       }
     }
     mem.writeBoolToEEPROM(addr_set, true);
-    return {ACK,"", true};
+    return {ACK, "", true};
   }
-  return {ERR,"Parameter length not in [" + String(min_length) + "," + String(max_length) +"]", true};
+  return {ERR, "Parameter length not in [" + String(min_length) + "," + String(max_length) + "]", true};
 }
 
-void initCrypt(){
+void initCrypt() {
   printDebug("Initialising Crypto");
   crypt.init(DEVICEPASS);
 }
 
 void loadSettings() {
   printDebug("Initialising PersistentMemory");
-  mem.init();
 
   //clearEEPROM(MEM_FIRST, MEM_LAST); //uncomment this to clear all saved settings on startup.
 
@@ -182,9 +162,14 @@ void loadSettings() {
   }
   printDebug("Loaded WIFIPASS: " + WIFIPASS);
 
-  if (mem.readBoolFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT_SET) == true) {
-    autoTrigger.setEnd(mem.readIntFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT));
+  if (mem.readBoolFromEEPROM(MEM_WIFI_MODE_SET) == true) {
+    WIFIMODE = mem.readStringFromEEPROM(MEM_WIFI_MODE, 1);
   }
+  printDebug("Loaded WIFIMODE: " + WIFIMODE);
+
+  //if (mem.readBoolFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT_SET) == true) {
+    //autoTrigger.setEnd(mem.readIntFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT));
+  //}
 }
 
 void initHardware() {
@@ -206,96 +191,40 @@ void setup() {
   initCrypt();
   setupWiFi();
   server.begin();
+  device->setup();
+  uptime.start();
   printDebug("Free HEAP: " + String(ESP.getFreeHeap()));
   printDebug("Bootsequence finished in " + String(millis()) + "ms" + "!\n");
-  uptime.start();
   #if ENABLE_STATUS_LED == 1
     led.fade(StatusLED::SINGLE_ON_OFF, 2000);
   #endif
 }
 
-void triggerRelay() {
-  relay.trigger();
-  gateState.trigger();
-}
-
-//Debug
-
-//String prepareHtmlPage(){
-//  String htmlPage =
-//     String("HTTP/1.1 200 OK\r\n") +
-//            "Content-Type: text/html\r\n" +
-//            "Connection: close\r\n" +  // the connection will be closed after completion of the response
-//            "\r\n" +
-//            "<!DOCTYPE HTML>" +
-//            "<html>" +
-//            "<br>Device Password: " + DEVICEPASS +
-//            "<br>WIFI SSID: " + WIFISSID +
-//            "<br>WIFI Pass: " + WIFIPASS +
-//            "<br>Stability: " + stabtest +
-//            "</html>" +
-//            "\r\n";
-//  return htmlPage;
-//}
-
-String wrap(String &message){
-  return String(MESSAGE_BEGIN) + message + MESSAGE_END;
-}
-
-String unwrap(String &message) { //REGEX: \[BEGIN\]\s*(.{0,200}?)\s*\[END\]
-  String out;
-  int startIndex = message.indexOf(MESSAGE_BEGIN);
-  int endIndex = message.indexOf(MESSAGE_END, startIndex);
-
-  if ((startIndex != -1) && (endIndex != -1) && (endIndex - startIndex <= 200)) {
-    out = message.substring(startIndex + strlen(MESSAGE_BEGIN), endIndex);
-  }
-  out.trim();
-  return out;
-}
 
 //Here we process the plaintext commands and generate an answer for the client.
 ProcessMessageStruct processMessage(String &message) {
-  
-  if (message == COMMAND_HELLO) {;
+  if (message == COMMAND_HELLO) {
     return {ACK, "", true};
   }
 
-  if (message == COMMAND_TRIGGER) {
-    printDebug("Trigger Relay!");
-    if (autoTrigger.isActive()) {
-      autoTrigger.disengage();
-    }
-    triggerRelay();
-    return {ACK, ""};
-  }
-
-  if (message == COMMAND_TRIGGER_AUTO) {
-    if (!autoTrigger.isActive()) {
-      //triggerRelay();
-      autoTrigger.engage();
-    } else {
-      autoTrigger.disengage();
-    }
-    return {ACK, ""};
+  ProcessMessageStruct p = device->processMessage(message);
+  if (!(p.responseCode == ERR && p.responseData == "NO_COMMAND")) {
+    return p;
   }
 
   if (message == COMMAND_PING) {
-    if(autoTrigger.isActive()){
-      autoTrigger.resetCounter();
-      return {ACK, ""};
-    }
-    return {ERR, "Unknown Command!"};
+      return {ERR, ""};
   }
 
-  if (message == COMMAND_GET_STATUS){
+  if (message == COMMAND_GET_STATUS) {
     String data = "FW-Version: " + String(FW_VERSION) + "\n\n" +
-                  "Autotrigger engaged: " + String(autoTrigger.isActive()) + "\n" +
-                  "Autotrigger timeout: " + String(autoTrigger.tickerEnd) + "s" + "\n" +
+                  //"Autotrigger engaged: " + String(autoTrigger.isActive()) + "\n" +
+                  //"Autotrigger timeout: " + String(autoTrigger.tickerEnd) + "s" + "\n" +
                   "Ratelimit: " + RATE_LIMIT_TIMEOUT_MS + "ms" + "\n" +
-                  "Relaystate: " + String(relay.getState()) + "\n" +
+                  //"Relaystate: " + String(relay.getState()) + "\n" +
                   "Updatemode: " + String(update_mode) + "\n" +
                   "Free HEAP: " + String(ESP.getFreeHeap()) + "Byte" + "\n" +
+                  device->getStatus() + "\n\n" +
                   "Uptime: " + uptime.getUptime();
     return {DATA, data, true};
   }
@@ -318,6 +247,10 @@ ProcessMessageStruct processMessage(String &message) {
     return writeSettings(message, 8, 63, COMMAND_SET_WIFI_PASS, MEM_WIFI_PASS, MEM_WIFI_PASS_SET, "string");
   }
 
+  if (message.startsWith(COMMAND_SET_WIFI_MODE)) {
+    return writeSettings(message, 1, 1, COMMAND_SET_WIFI_MODE, MEM_WIFI_MODE, MEM_WIFI_MODE_SET, "string");
+  }
+
   if (message.startsWith(COMMAND_SET_AUTOTRIGGER_TIMEOUT)) {
     return writeSettings(message, 1, 4, COMMAND_SET_AUTOTRIGGER_TIMEOUT, MEM_AUTOTRIGGER_TIMEOUT, MEM_AUTOTRIGGER_TIMEOUT_SET, "int");
   }
@@ -328,14 +261,14 @@ ProcessMessageStruct processMessage(String &message) {
     return {ACK, ""};
   }
 
-  if (message == COMMAND_RESET){
+  if (message == COMMAND_RESET) {
     printDebug("Clearing PMEM!");
     mem.clearEEPROM(MEM_FIRST, MEM_LAST);
     return {ACK, ""};
   }
 
-  if (message == COMMAND_UPDATE){
-    if(!update_mode) {
+  if (message == COMMAND_UPDATE) {
+    if (!update_mode) {
       printDebug("Enabling Updatemode!");
       httpUpdater.setup(&httpUpdateServer, UPDATE_PATH);
       httpUpdateServer.begin();
@@ -353,22 +286,22 @@ ProcessMessageStruct processMessage(String &message) {
 
 String receive_Data(WiFiClient &client) {
   if (client.available()) {
-    String httpMessage = client.readStringUntil('\r');
+    String httpMessage = client.readStringUntil('\n');
     printDebug("\nReceived:\n" + httpMessage);
-    String body = unwrap(httpMessage);
+    String body = Message::unwrap(httpMessage);
     return body;
   }
   return "";
 }
 
 void send_Data(WiFiClient &client, String data) {
-  data = wrap(data);
+  data = Message::wrap(data);
   printDebug("\nSending:\n" + data + "\n");
   client.print(data + "\r\n");
   client.flush();
 }
 
-void stopClient(WiFiClient &client){
+void stopClient(WiFiClient &client) {
   rateLimit.setState(BLOCKED);
   client.stop();
   yield();
@@ -377,39 +310,39 @@ void stopClient(WiFiClient &client){
 uint8_t iv_challenge[AES_GCM_IV_LEN]; //global, because we need to preserve the value between loops.
 
 void doTCPServerStuff() {
-  
-  if(!client || !client.connected()){ //garbage collection
-    if(client){
+
+  if (!client || !client.connected()) { //garbage collection
+    if (client) {
       client.stop();
     }
     // wait for a client to connect
     client = server.available();
   }
-  
-  if(rateLimit.getState() == OPEN){ //Check if we are ready for a new connection
-       
+
+  if (rateLimit.getState() == OPEN) { //Check if we are ready for a new connection
+
     //printDebug("[Client connected]");
     client.setTimeout(TCP_TIMEOUT_MS);
     client.setNoDelay(true);
 
     String s = receive_Data(client);
-    
-    if(s != "") {
+
+    if (s != "") {
 
       Msg message; //Msg defined in Message.h
-      
-      switch(connectionState.getState()){
+
+      switch (connectionState.getState()) {
         case NONE:
           message = Message::decrypt(s, NULL); //IV is inside s
-        break;
+          break;
         case PHASE2:
           message = Message::decrypt(s, iv_challenge); //s doesn't contains the IV as it was send as challenge secret in the previous message
-        break;
+          break;
       }
 
-      
-      if (message.type == DATA){
-     
+
+      if (message.type == DATA) {
+
         switch (connectionState.getState()) {
           case NONE:
             if (message.data == COMMAND_HELLO) {
@@ -423,8 +356,8 @@ void doTCPServerStuff() {
               send_Data(client, Message::encrypt(ERR, "Y u no greet me?!"));
               stopClient(client); //the client didn't know how to talk to us.
             }
-          break;
-      
+            break;
+
           case PHASE2:
             connectionState.setState(NONE); //the client send a correctly encrypted second message.
             ProcessMessageStruct ret = processMessage(message.data); //process his data
@@ -432,16 +365,16 @@ void doTCPServerStuff() {
 
             //for some messages (like setSettings) we know that the client may send a following one very quickly.
             //other messages (like trigger) shouldn't be called that quickly.
-            if(!ret.noRateLimit){
+            if (!ret.noRateLimit) {
               stopClient(client);
             }
 
             printDebug("-------------------------------");
-          break;
-          }
+            break;
+        }
       } else {
         printDebug("Decryption failed!");
-        send_Data(client, Message::encrypt(ERR,"Nope!"));
+        send_Data(client, Message::encrypt(ERR, "Nope!"));
         stopClient(client);
       }
     }
@@ -456,13 +389,9 @@ void doTCPServerStuff() {
 void loop() {
   doTCPServerStuff();
 
-  if(gateState.getState() == STILL){
-    if (autoTrigger.isFinished()) {
-      triggerRelay();
-    }
-  }
+  device->loop();
 
-  if(update_mode){
+  if (update_mode) {
     httpUpdateServer.handleClient();
   }
 }
