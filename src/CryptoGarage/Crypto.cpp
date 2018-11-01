@@ -7,6 +7,7 @@
 #include "Crypto.h"
 
 void Crypto::init(String devicepass){
+  printDebug("Initialising Crypto");
   keyDerivationFunction(devicepass);
 }
 

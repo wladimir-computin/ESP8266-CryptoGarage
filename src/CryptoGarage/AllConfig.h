@@ -15,9 +15,10 @@
 
   const int TCP_SERVER_PORT = 4646;
   const int HTTP_OTA_PORT = 8266;
+  const int UDP_SERVER_PORT = 4647;
   const int CONNECTION_STATE_TIMEOUT = 2; //Seconds which the client has to answer the challenge message.
   const int RATE_LIMIT_TIMEOUT_MS = 200; //Milliseconds between communication attempts, set to 0 to disable rate limiting.
-  const int TCP_TIMEOUT_MS = 50;  //Time before drop incoming transmsission as it takes too long
+  const int TCP_TIMEOUT_MS = 100;  //Time before drop incoming transmsission as it takes too long
   const int RELAY_TRIGGER_TIME_MS = 250;  //click ...time in ms... clack
   const int AUTOTRIGGER_TIMEOUT_DEFAULT = 10; //Seconds after last succesfull ping.
   const int AES_GCM_TAG_LEN = 16; //Recommended value is 16. Don't change unless you understand how AES-GCM works.
@@ -25,6 +26,7 @@
 
   const char UPDATE_PATH[] = "/update";
 
+  const char DEFAULT_HOSTNAME[] = "CryptoGarage";
   const char DEFAULT_WIFISSID[] = "GarageTest";
   const char DEFAULT_WIFIPASS[] = "12345670";
   const char DEFAULT_DEVICEPASS[] = "TestTest1";
@@ -33,6 +35,6 @@
   const char KEY_SALT[] = "FTh.!%B$";
   const int SHA_ROUNDS = 5000;
 
-  const char FW_VERSION[] = "4.1";
+  const char FW_VERSION[] = "4.2";
 
 #endif

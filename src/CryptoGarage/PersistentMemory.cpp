@@ -75,3 +75,25 @@ void PersistentMemory::writeIntToEEPROM(enum MemMap start_index, int input) {
   EEPROM.write(start_index, low);
   EEPROM.write(start_index + 1, high);
 }
+
+//Well... this is kind of tricky to explain. Nah... nevermind!
+ProcessMessageStruct PersistentMemory::writeSettings(String message, int min_length, int max_length, const char * command, MemMap addr, MemMap addr_set, String type) {
+  printDebug(message);
+  String setting = message.substring(message.indexOf(command) + strlen(command) + 1);
+  printDebug("Writing setting: " + String(command) + " : " + setting);
+  if (setting.length() >= min_length && setting.length() <= max_length) {
+    if (type == "string") {
+      writeStringToEEPROM(addr, max_length, setting);
+    } else if (type == "int") {
+      int i = setting.toInt();
+      if (i >= 0 && i <= 9999) {
+        writeIntToEEPROM(addr, i);
+      } else {
+        return {ERR, "Int not in [0,9999]", true};
+      }
+    }
+    writeBoolToEEPROM(addr_set, true);
+    return {ACK, "", true};
+  }
+  return {ERR, "Parameter length not in [" + String(min_length) + "," + String(max_length) + "]", true};
+}

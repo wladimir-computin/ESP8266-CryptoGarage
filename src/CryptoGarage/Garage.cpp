@@ -17,7 +17,7 @@ void Garage::loop(){
 void Garage::setup(){
     PersistentMemory &mem = PersistentMemory::instance();
     if (mem.readBoolFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT_SET) == true) {
-    //autoTrigger.setEnd(mem.readIntFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT));
+      autoTrigger.setEnd(mem.readIntFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT));
   }
 }
 

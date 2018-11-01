@@ -13,6 +13,7 @@
 
 #include <EEPROM.h>
 
+#include "Message.h"
 #include "Debug.h"
 
 //Persistent memory address map. Otherwise we don't know at which address which setting is saved.
@@ -22,7 +23,7 @@ enum MemMap {
   MEM_WIFI_SSID = MEM_DEV_PASS + 65, //the numbers are offsets in bytes
   MEM_WIFI_PASS = MEM_WIFI_SSID + 33,
   MEM_WIFI_MODE = MEM_WIFI_PASS + 64,
-  MEM_AUTOTRIGGER_TIMEOUT = MEM_WIFI_MODE + 1,
+  MEM_AUTOTRIGGER_TIMEOUT = MEM_WIFI_MODE + 7,
   MEM_DEV_PASS_SET = MEM_AUTOTRIGGER_TIMEOUT + 2,
   MEM_WIFI_SSID_SET = MEM_DEV_PASS_SET + 1,
   MEM_WIFI_PASS_SET = MEM_WIFI_SSID_SET + 1,
@@ -58,6 +59,8 @@ class PersistentMemory {
     
     int readIntFromEEPROM(enum MemMap start_index);
     void writeIntToEEPROM(enum MemMap start_index, int input);
+
+    ProcessMessageStruct writeSettings(String message, int min_length, int max_length, const char * command, MemMap addr, MemMap addr_set, String type);
     
 };
  
