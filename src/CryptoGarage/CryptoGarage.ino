@@ -52,7 +52,7 @@
 #include "Crypto.h"
 #include "PersistentMemory.h"
 #include "WiFiManager.h"
-#include "ConnectionState.h"
+#include "ChallengeManager.h"
 #include "RateLimit.h"
 #include "Message.h"
 #include "Uptime.h"
@@ -67,10 +67,6 @@ String WIFISSID = DEFAULT_WIFISSID; //Defined in AllConfig.h
 String WIFIPASS = DEFAULT_WIFIPASS;
 String DEVICEPASS = DEFAULT_DEVICEPASS;
 String WIFIMODE = DEFAULT_WIFIMODE;
-
-const char RESPONSE_OK[] = "OK";
-const char RESPONSE_DATA[] = "DATA";
-const char RESPONSE_ERROR[] = "FAIL";
 
 const char COMMAND_HELLO[] = "hellofriend";
 const char COMMAND_SET_DEVICE_PASS[] = "setDevicePass";
@@ -113,7 +109,7 @@ bool update_mode = false;
 Crypto &crypt = Crypto::instance();
 PersistentMemory &mem = PersistentMemory::instance();
 WiFiManager &wifi = WiFiManager::instance();
-ConnectionState connectionState;
+ChallengeManager challengeManager;
 RateLimit rateLimit;
 
 //Create WiFi AP
@@ -191,10 +187,7 @@ void setup() {
 
 //Here we process the plaintext commands and generate an answer for the client.
 ProcessMessageStruct processMessage(String &message) {
-  if (message == COMMAND_HELLO) {
-    return {ACK, "", true};
-  }
-
+  
   ProcessMessageStruct p = device->processMessage(message);
   if (!(p.responseCode == ERR && p.responseData == "NO_COMMAND")) {
     return p;
@@ -207,7 +200,7 @@ ProcessMessageStruct processMessage(String &message) {
   if (message == COMMAND_GET_STATUS) {
     String data = String("Device name: ") + DEFAULT_HOSTNAME + "\n" +
                   "FW-Version: " + String(FW_VERSION) + "\n" +
-                  "Local IP: " + WiFi.localIP().toString() + "\n\n" +
+                  "Local IP: " + wifi.getIP() + "\n\n" +
                   //"Autotrigger engaged: " + String(autoTrigger.isActive()) + "\n" +
                   //"Autotrigger timeout: " + String(autoTrigger.tickerEnd) + "s" + "\n" +
                   
@@ -217,7 +210,7 @@ ProcessMessageStruct processMessage(String &message) {
                   "Free HEAP: " + String(ESP.getFreeHeap()) + "Byte" + "\n" +
                   device->getStatus() + "\n\n" +
                   "Uptime: " + uptime.getUptime();
-    return {DATA, data, true};
+    return {DATA, data};
   }
 
   if (message == COMMAND_REBOOT) {
@@ -268,7 +261,7 @@ ProcessMessageStruct processMessage(String &message) {
         led.fade(StatusLED::PERIODIC_FADE, 2000);
       #endif
     }
-    return {DATA, String("http://192.168.4.1:") + HTTP_OTA_PORT + UPDATE_PATH}; //IP static for now...
+    return {DATA, wifi.getIP() + ":" + HTTP_OTA_PORT + UPDATE_PATH};
   }
 
   printDebug("Received unknown command:" + message);
@@ -329,9 +322,7 @@ void stopClient_TCP(WiFiClient &client) {
   yield();
 }
 
-uint8_t iv_challenge[AES_GCM_IV_LEN]; //global, because we need to preserve the value between loops.
-
-void doTCPServerStuff() {
+void doTCPServerStuff_beta() {
 
   if (!client || !client.connected()) { //garbage collection
     if (client) {
@@ -343,7 +334,6 @@ void doTCPServerStuff() {
 
   if (rateLimit.getState() == OPEN) { //Check if we are ready for a new connection
 
-    //printDebug("[Client connected]");
     client.setTimeout(TCP_TIMEOUT_MS);
     client.setNoDelay(true);
 
@@ -353,52 +343,45 @@ void doTCPServerStuff() {
 
       Msg message; //Msg defined in Message.h
 
-      switch (connectionState.getState()) {
-        case NONE:
-          message = Message::decrypt(s, NULL); //IV is inside s
-          break;
-        case PHASE2:
-          message = Message::decrypt(s, iv_challenge); //s doesn't contains the IV as it was send as challenge secret in the previous message
-          break;
-      }
+      message = Message::decrypt(s, challengeManager);
 
+      if(message.type != NOPE) {
+  
+        if (message.type == HELLO) {
+          //preparing random challenge secret
+          send_Data_TCP(client, Message::encrypt(HELLO, "", message.challenge, challengeManager.generateRandomChallenge(), FLAG_NONE));
+          //sending encrypted challenge to client, the client has to prove its knowledge of the correct password by encrypting the next
+          //message containing our challenge. We have proven our knowledge by sending the reencrypted client_challenge back.
+  
+        //the client send a correctly encrypted second message.
+        } else if (message.type == DATA){
+          ProcessMessageStruct ret = processMessage(message.data); //process his data
+          //for some messages (like setSettings) we know that the client may send a following one very quickly.
+          //other messages (like trigger) shouldn't be called that quickly. For the quick ones, we can save the challenge-response handshake.
+          String flags = ret.flags;
+          
+          //preparing next random challenge secret
+          send_Data_TCP(client, Message::encrypt(ret.responseCode, ret.responseData, message.challenge, challengeManager.generateRandomChallenge(), flags)); //send answer
+         
 
-      if (message.type == DATA) {
-
-        switch (connectionState.getState()) {
-          case NONE:
-            if (message.data == COMMAND_HELLO) {
-              printDebug("Sending IV challenge");
-              crypt.getRandomIV(iv_challenge); //preparing random challenge secret
-              send_Data_TCP(client, Message::encrypt(DATA, iv_challenge, sizeof(iv_challenge)));
-              //sending encrypted challenge IV to client, the client has to prove its knowledge of the correct password by encrypting the next
-              //message with the passsword + the decrypted challenge IV.
-              connectionState.setState(PHASE2); //the client has only a certain amount of time to answer (and only one guess.)
-            } else {
-              send_Data_TCP(client, Message::encrypt(ERR, "Y u no greet me?!"));
-              stopClient_TCP(client); //the client didn't knew how to talk to us.
-            }
-            break;
-
-          case PHASE2:
-            connectionState.setState(NONE); //the client send a correctly encrypted second message.
-            ProcessMessageStruct ret = processMessage(message.data); //process his data
-            send_Data_TCP(client, Message::encrypt(ret.responseCode, ret.responseData)); //send answer
-
-            //for some messages (like setSettings) we know that the client may send a following one very quickly.
-            //other messages (like trigger) shouldn't be called that quickly.
-            if (!ret.noRateLimit) {
-              stopClient_TCP(client);
-            }
-
-            printDebug("-------------------------------");
-            break;
+          //for some messages (like setSettings) we know that the client may send a following one very quickly.
+          //other messages (like trigger) shouldn't be called that quickly.
+          if (!(ret.flags.indexOf(FLAG_KEEP_ALIVE) != -1)){
+            stopClient_TCP(client);
+          }
+        } else {
+          printDebug("Wrong formatted message received!");
+          send_Data_TCP(client, Message::encrypt(ERR, "Nope!", "", "", FLAG_NONE));
+          stopClient_TCP(client);
         }
+        
       } else {
         printDebug("Decryption failed!");
-        send_Data_TCP(client, Message::encrypt(ERR, "Nope!"));
+        challengeManager.resetChallenge();
+        send_Data_TCP(client, Message::encrypt(ERR, "Nope!", "", "", FLAG_NONE));
         stopClient_TCP(client);
       }
+      printDebug("-------------------------------");
     }
   } else {
     client.stop();
@@ -407,9 +390,97 @@ void doTCPServerStuff() {
   }
 }
 
+//void doTCPServerStuff() {
+//
+//  if (!client || !client.connected()) { //garbage collection
+//    if (client) {
+//      client.stop();
+//    }
+//    // wait for a client to connect
+//    client = server.available();
+//  }
+//
+//  if (rateLimit.getState() == OPEN) { //Check if we are ready for a new connection
+//
+//    //printDebug("[Client connected]");
+//    client.setTimeout(TCP_TIMEOUT_MS);
+//    client.setNoDelay(true);
+//
+//    String s = receive_Data_TCP(client);
+//
+//    if (s != "") {
+//
+//      Msg message; //Msg defined in Message.h
+//
+//      message = Message::decrypt(s, challenge_request_b64);
+//
+//      if(message.type != NOPE) {
+//
+//        if (message.type == HELLO) {
+//          connectionState.setState(NONE);
+//        }
+//        
+//        challenge_request_b64 = "";
+//    
+//        switch (connectionState.getState()) {
+//          case NONE:
+//            if (message.type == HELLO) {
+//              challenge_request_b64 = crypt.getRandomChallengeBase64(); //preparing random challenge secret
+//              send_Data_TCP(client, Message::encrypt(HELLO, "TEST", message.challenge, challenge_request_b64, FLAG_NONE));
+//              //sending encrypted challenge to client, the client has to prove its knowledge of the correct password by encrypting the next
+//              //message containing our challenge. We have proven our knowledge by sending the reencrypted client_challenge back.
+//              connectionState.setState(PHASE2); //the client has only a certain amount of time to answer (and only one guess.)
+//            } else {
+//              send_Data_TCP(client, Message::encrypt(ERR, "Y u no greet me?!", "", "", FLAG_NONE));
+//              stopClient_TCP(client); //the client didn't knew how to talk to us.
+//            }
+//            break;
+//  
+//          case PHASE2:
+//            connectionState.setState(NONE); //the client send a correctly encrypted second message.
+//            if (message.type == DATA){
+//              ProcessMessageStruct ret = processMessage(message.data); //process his data
+//              //for some messages (like setSettings) we know that the client may send a following one very quickly.
+//              //other messages (like trigger) shouldn't be called that quickly. For the quick ones, we can save the challenge-response handshake.
+//              String flags = ret.flags;
+//              if (ret.flags.indexOf(FLAG_KEEP_ALIVE) != -1) {
+//                flags = FLAG_KEEP_ALIVE;
+//                challenge_request_b64 = crypt.getRandomChallengeBase64(); //preparing next random challenge secret
+//                connectionState.setState(PHASE2);
+//              }
+//              send_Data_TCP(client, Message::encrypt(ret.responseCode, ret.responseData, message.challenge, challenge_request_b64, flags)); //send answer
+//             
+//    
+//              //for some messages (like setSettings) we know that the client may send a following one very quickly.
+//              //other messages (like trigger) shouldn't be called that quickly.
+//              if (!ret.flags.indexOf(FLAG_KEEP_ALIVE) != -1) {
+//                stopClient_TCP(client);
+//              }
+//            } else {
+//              printDebug("Wrong formatted message received!");
+//              send_Data_TCP(client, Message::encrypt(ERR, "Nope!", "", "", FLAG_NONE));
+//              stopClient_TCP(client);
+//            }
+//  
+//            break;
+//        }
+//      } else {
+//        printDebug("Decryption failed!");
+//        send_Data_TCP(client, Message::encrypt(ERR, "Nope!", "", "", FLAG_NONE));
+//        stopClient_TCP(client);
+//      }
+//      printDebug("-------------------------------");
+//    }
+//  } else {
+//    client.stop();
+//    yield();
+//    tcpCleanup();
+//  }
+//}
 
-String discoverResponse = String(RESPONSE_DATA) + ":::" + DEFAULT_HOSTNAME;
-String discover = String(RESPONSE_DATA) + ":::" + COMMAND_DISCOVER;
+
+String discoverResponse = String(HEADER_DATA) + ":::" + DEFAULT_HOSTNAME;
+String discover = String(HEADER_HELLO) + ":::" + COMMAND_DISCOVER;
 
 void doUDPServerStuff(){
 
@@ -418,7 +489,7 @@ void doUDPServerStuff(){
     String s = receive_Data_UDP();
     
     if (s != "") {
-      
+
       if(s == discover){
         send_Data_UDP(discoverResponse);
         stopClient_UDP();
@@ -427,60 +498,54 @@ void doUDPServerStuff(){
 
       Msg message; //Msg defined in Message.h
 
-      switch (connectionState.getState()) {
-        case NONE:
-          message = Message::decrypt(s, NULL); //IV is inside s
-          break;
-        case PHASE2:
-          message = Message::decrypt(s, iv_challenge); //s doesn't contains the IV as it was send as challenge secret in the previous message
-          break;
-      }
+      message = Message::decrypt(s, challengeManager);
+      
+      //check if the client send a correctly encrypted message.
+      if(message.type != NOPE) {
+  
+        if (message.type == HELLO) {
+          //preparing random challenge secret
+          send_Data_UDP(Message::encrypt(HELLO, "", message.challenge, challengeManager.generateRandomChallenge(), FLAG_NONE));
+          //sending  challenge to client, the client has to prove its knowledge of the correct password by encrypting the next
+          //message containing our challenge. We have proven our knowledge by sending the reencrypted client_challenge back.
+  
+        } else if (message.type == DATA){
+          ProcessMessageStruct ret = processMessage(message.data); //process his data
+          //for some messages (like setSettings) we know that the client may send a following one very quickly.
+          //other messages (like trigger) shouldn't be called that quickly. For the quick ones, we can save the challenge-response handshake.
+          String flags = ret.flags;
+          
+          //preparing next random challenge secret
+          send_Data_UDP(Message::encrypt(ret.responseCode, ret.responseData, message.challenge, challengeManager.generateRandomChallenge(), flags)); //send answer
+         
 
-
-      if (message.type == DATA) {
-
-        switch (connectionState.getState()) {
-          case NONE:
-            if (message.data == COMMAND_HELLO) {
-              printDebug("Sending IV challenge");
-              crypt.getRandomIV(iv_challenge); //preparing random challenge secret
-              send_Data_UDP(Message::encrypt(DATA, iv_challenge, sizeof(iv_challenge)));
-              //sending encrypted challenge IV to client, the client has to prove its knowledge of the correct password by encrypting the next
-              //message with the passsword + the decrypted challenge IV.
-              connectionState.setState(PHASE2); //the client has only a certain amount of time to answer (and only one guess.)
-            } else {
-              send_Data_UDP(Message::encrypt(ERR, "Y u no greet me?!"));
-              stopClient_UDP(); //the client didn't know how to talk to us.
-            }
-            break;
-
-          case PHASE2:
-            connectionState.setState(NONE); //the client send a correctly encrypted second message.
-            ProcessMessageStruct ret = processMessage(message.data); //process his data
-            send_Data_UDP(Message::encrypt(ret.responseCode, ret.responseData)); //send answer
-
-            //for some messages (like setSettings) we know that the client may send a following one very quickly.
-            //other messages (like trigger) shouldn't be called that quickly.
-            if (!ret.noRateLimit) {
-              stopClient_UDP();
-            }
-
-            printDebug("-------------------------------");
-            break;
+          //for some messages (like setSettings) we know that the client may send a following one very quickly.
+          //other messages (like trigger) shouldn't be called that quickly.
+          if (!(ret.flags.indexOf(FLAG_KEEP_ALIVE) != -1)){
+            stopClient_UDP();
+          }
+        } else {
+          printDebug("Wrong formatted message received!");
+          send_Data_UDP(Message::encrypt(ERR, "Nope!", "", "", FLAG_NONE));
+          stopClient_UDP();
         }
+        
       } else {
         printDebug("Decryption failed!");
-        send_Data_UDP(Message::encrypt(ERR, "Nope!"));
+        challengeManager.resetChallenge();
+        send_Data_UDP(Message::encrypt(ERR, "Nope!", "", "", FLAG_NONE));
         stopClient_UDP();
       }
+      printDebug("-------------------------------");
     }
   }
 }
 
 
 void loop() {
-  doTCPServerStuff();
   doUDPServerStuff();
+  doTCPServerStuff_beta();
+  
 
   device->loop();
 

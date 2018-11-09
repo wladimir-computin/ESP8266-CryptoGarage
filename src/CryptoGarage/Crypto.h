@@ -45,8 +45,14 @@ class Crypto {
       //on initialize the devicepass gets hashed with SHA256 and is used as AES key
       void init(String devicepass);
       
-      //fill the passed iv with random bytes
+      //fill the passed IV with random bytes
       void getRandomIV(uint8_t * iv);
+
+      //fill the passed challenge with random bytes
+      void getRandomChallenge(uint8_t * challenge);
+
+      //return random challenge as base64 String
+      String getRandomChallengeBase64();
 
       //encrypt a String, using an IV and writes the tag into tag and the encrypted byte array into out
       void encryptData(const String &data, uint8_t * iv, uint8_t * tag, uint8_t * out);
@@ -57,11 +63,12 @@ class Crypto {
       //decrypt a byte array using an IV and a tag, writes output into out
       void decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out);
 
-      //decrypt a byte array using an IV and a tag, return a String.
+      //decrypt a byte array using an IV and a tag, returns a String.
       String decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag);
       
       String bytesToBase64(uint8_t * bytes, int len);
       void base64ToBytes(const String &in, uint8_t * out);
+      String base64ToBytes(const String &in);
       uint16_t base64DecodedLength(const String &b64);
 
       //get SHA256(devicepass) as byte array

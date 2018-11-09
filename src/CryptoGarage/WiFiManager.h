@@ -22,6 +22,7 @@ class WiFiManager{
     void applyMode();
     bool setCredentials(String ssid, String pass);
     void init();
+    String getIP();
     String mode2string(WiFiModes m);
     WiFiModes string2mode(String m);
     

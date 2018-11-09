@@ -59,6 +59,16 @@ void WiFiManager::init(){
   applyMode();
 }
 
+String WiFiManager::getIP(){
+  if (mode == AP){
+    return WiFi.softAPIP().toString();
+  } else if (mode == CLIENT){
+    return WiFi.localIP().toString();
+  } else {
+    return WiFi.softAPIP().toString();
+  }
+}
+
 String WiFiManager::mode2string(WiFiModes m){
   switch (m){
    case AP:

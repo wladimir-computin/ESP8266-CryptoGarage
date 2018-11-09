@@ -32,10 +32,19 @@ void Crypto::getRandomIV(uint8_t * iv){
   ESP8266TrueRandom.memfill((char*)iv, AES_GCM_IV_LEN);
 }
 
+void Crypto::getRandomChallenge(uint8_t * challenge){
+  ESP8266TrueRandom.memfill((char*)challenge, CHALLENGE_LEN);
+}
+
+String Crypto::getRandomChallengeBase64(){
+  uint8_t challenge[CHALLENGE_LEN];
+  getRandomChallenge(challenge);
+  String challenge_b64 = bytesToBase64(challenge, sizeof(challenge));
+  return challenge_b64;
+}
+
 void Crypto::encryptData(const String &data, uint8_t * iv, uint8_t * tag, uint8_t * out) {
-  uint8_t in[data.length()];
-  data.getBytes(in, sizeof(in));
-  encryptData(in, sizeof(in), iv, tag, out);
+  encryptData((uint8_t*) data.c_str(), data.length(), iv, tag, out);
 }
 
 void Crypto::encryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * tag, uint8_t * out) {
@@ -52,6 +61,7 @@ void Crypto::decryptData(uint8_t * data, int dataLen, uint8_t * iv, uint8_t * ta
   gcm.setIV(iv, AES_GCM_IV_LEN);
   gcm.decrypt(out, data, dataLen);
   if (!gcm.checkTag(tag, AES_GCM_TAG_LEN)) { //data corrupted or tampered, throw away!
+    printDebug("TAG missmatch, packet corrupted!");
     memset(out, '\0', dataLen);
   }
 }
@@ -71,6 +81,13 @@ String Crypto::bytesToBase64(uint8_t * bytes, int len) {
 
 void Crypto::base64ToBytes(const String &in, uint8_t * out) {
   base64.decode(out, (char*)in.c_str(), in.length());
+}
+
+String Crypto::base64ToBytes(const String &in) {
+  uint8_t temp[base64DecodedLength(in) + 1];
+  base64ToBytes(in, temp);
+  temp[sizeof(temp) - 1] = '\0';
+  return String((char*)temp);
 }
 
 uint16_t Crypto::base64DecodedLength(const String &b64){

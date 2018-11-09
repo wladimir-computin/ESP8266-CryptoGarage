@@ -1,0 +1,22 @@
+[Desktop Entry]
+Categories=Development;IDE;Electronics;
+Comment[de_DE]=Open-source electronics prototyping platform
+Comment=Open-source electronics prototyping platform
+Exec=/opt/arduino-ide/arduino
+GenericName[de_DE]=Arduino IDE
+GenericName=Arduino IDE
+Icon=/opt/arduino-ide/lib/icons/128x128/apps/arduino.png
+Keywords=embedded electronics;electronics;avr;microcontroller;
+MimeType=text/x-arduino;
+Name[de_DE]=Arduino IDE
+Name=Arduino IDE
+Path=
+StartupNotify=true
+StartupWMClass=processing-app-Base
+Terminal=false
+TerminalOptions=
+Type=Application
+X-DBUS-ServiceName=
+X-DBUS-StartupType=
+X-KDE-SubstituteUID=false
+X-KDE-Username=

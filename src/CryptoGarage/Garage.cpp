@@ -46,7 +46,7 @@ ProcessMessageStruct Garage::processMessage(String &message) {
   if (message == COMMAND_AUTOTRIGGER_PING) {
     if(autoTrigger.isActive()){
       autoTrigger.resetCounter();
-      return {ACK, ""};
+      return {ACK, "", FLAG_KEEP_ALIVE};
     }
   }
 

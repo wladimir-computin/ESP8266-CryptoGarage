@@ -89,11 +89,11 @@ ProcessMessageStruct PersistentMemory::writeSettings(String message, int min_len
       if (i >= 0 && i <= 9999) {
         writeIntToEEPROM(addr, i);
       } else {
-        return {ERR, "Int not in [0,9999]", true};
+        return {ERR, "Int not in [0,9999]", FLAG_KEEP_ALIVE};
       }
     }
     writeBoolToEEPROM(addr_set, true);
-    return {ACK, "", true};
+    return {ACK, "", FLAG_KEEP_ALIVE};
   }
-  return {ERR, "Parameter length not in [" + String(min_length) + "," + String(max_length) + "]", true};
+  return {ERR, "Parameter length not in [" + String(min_length) + "," + String(max_length) + "]", FLAG_KEEP_ALIVE};
 }
