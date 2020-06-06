@@ -14,8 +14,10 @@
   
   #if DEBUG == 1 //Defined in AllConfig.h
     #define printDebug(x) Serial.println(x)
+    #define printfDebug(x...) Serial.printf(x)
   #else
     #define printDebug(x) while(false)
+    #define printfDebug(x...) while(false)
   #endif
   
 #endif

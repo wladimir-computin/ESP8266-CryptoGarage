@@ -19,6 +19,10 @@ state GarageGate::getState(){
   return gateState;
 }
 
+String GarageGate::getStateStr(){
+  return "";
+}
+
 void GarageGate::trigger(){
   gateTicker.detach();
   if (gateState == MOVING){
@@ -29,3 +33,10 @@ void GarageGate::trigger(){
   }
 }
 
+void GarageGate::loop(){
+  
+}
+
+void GarageGate::setup(){
+  
+}

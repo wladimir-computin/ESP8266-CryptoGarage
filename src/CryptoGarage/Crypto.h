@@ -35,7 +35,7 @@ class Crypto {
       Crypto( const Crypto& );
       Crypto & operator = (const Crypto &);
 
-      uint8_t aesKey[32];
+      uint8_t aesKey[AES256_KEY_LEN];
 
       void keyDerivationFunction(String devicepass);
 

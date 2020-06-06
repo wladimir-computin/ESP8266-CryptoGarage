@@ -103,12 +103,13 @@ Msg Message::decrypt(String &s, ChallengeManager &cm) {
         
         deli1 = decrypted_message.indexOf(":");
         deli2 = decrypted_message.indexOf(":", deli1 + 1);
+        deli3 = decrypted_message.indexOf(":", deli2 + 1);
         
-        if (deli1 != -1 && deli2 != -1){
-          _challenge_response_b64 = decrypted_message.substring(0, deli1);
-          _challenge_request_b64 = decrypted_message.substring(deli1 + 1, deli2);
-          
-          _data_b64 = decrypted_message.substring(deli2 + 1);
+        if (deli1 != -1 && deli2 != -1 && deli3 != -1){
+          //flags placeholder = decrypted_message.substring(0, deli1);
+          _challenge_response_b64 = decrypted_message.substring(deli1 + 1, deli2);
+          _challenge_request_b64 = decrypted_message.substring(deli2 + 1, deli3);
+          _data_b64 = decrypted_message.substring(deli3 + 1);
         }
 
         if(type == DATA){
@@ -205,7 +206,7 @@ String Message::wrap(String &message) {
   return String(MESSAGE_BEGIN) + message + MESSAGE_END;
 }
 
-String Message::unwrap(String &message) { //REGEX: \[BEGIN\]\s*(.{0,200}?)\s*\[END\]
+String Message::unwrap(String &message) { //REGEX: \[BEGIN\]\s*(.{0,MAX_MESSAGE_LEN}?)\s*\[END\]
   String out;
   int startIndex = message.indexOf(MESSAGE_BEGIN);
   int endIndex = message.indexOf(MESSAGE_END, startIndex);

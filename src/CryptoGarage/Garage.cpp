@@ -7,7 +7,8 @@
 #include "Garage.h"
 
 void Garage::loop(){
-  if(gateState.getState() == STILL){
+  gateState.loop();
+  if(gateState.getState() == GATE_OPEN){
     if (autoTrigger.isFinished()) {
       triggerRelay();
     }
@@ -18,6 +19,7 @@ void Garage::setup(){
     PersistentMemory &mem = PersistentMemory::instance();
     if (mem.readBoolFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT_SET) == true) {
       autoTrigger.setEnd(mem.readIntFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT));
+    gateState.setup();
   }
 }
 
@@ -50,16 +52,21 @@ ProcessMessageStruct Garage::processMessage(String &message) {
     }
   }
 
+  if (message == COMMAND_GATESTATE) {
+    return {DATA, gateState.getStateStr(), FLAG_KEEP_ALIVE};
+  }
+
   return {ERR, "NO_COMMAND"};
 }
 
 String Garage::getStatus(){
   return "Autotrigger engaged: " + String(autoTrigger.isActive()) + "\n" +
          "Autotrigger timeout: " + String(autoTrigger.tickerEnd) + "s" + "\n" +
-         "Relaystate: " + String(relay.getState());
+         "Relaystate: " + String(relay.getState()) + "\n" +
+         "GateState: " + gateState.getStateStr();
 }
 
 void Garage::triggerRelay() {
-  relay.trigger();
   gateState.trigger();
+  relay.trigger();
 }

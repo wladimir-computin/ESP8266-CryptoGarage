@@ -27,17 +27,21 @@ WiFiModes WiFiManager::getMode(){
 }
 
 void WiFiManager::applyMode(){
+  WiFi.mode(WIFI_OFF);
+  delay(1);
   switch(mode){
     case AP:
       printDebug("Starting WiFi-AP: " + ssid + ":" + pass);
       WiFi.setPhyMode(WIFI_PHY_MODE_11B);
-      WiFi.mode(WIFI_AP);
+      WiFi.mode(WIFI_AP); 
       WiFi.softAP(ssid.c_str(), pass.c_str());
+      WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
     break;
     case CLIENT:
       printDebug("Connecting to: " + ssid + ":" + pass);
       WiFi.setPhyMode(WIFI_PHY_MODE_11G);
       WiFi.mode(WIFI_STA);
+      WiFi.hostname(DEFAULT_HOSTNAME);
       WiFi.begin(ssid.c_str(), pass.c_str());
     break;
     case HYBRID:
@@ -47,6 +51,8 @@ void WiFiManager::applyMode(){
       WiFi.setPhyMode(WIFI_PHY_MODE_11G);
       WiFi.mode(WIFI_AP_STA);
       WiFi.softAP(DEFAULT_HOSTNAME, pass.c_str());
+      WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+      WiFi.hostname(DEFAULT_HOSTNAME);
       WiFi.begin(ssid.c_str(), pass.c_str());
     break;
   }
@@ -54,7 +60,6 @@ void WiFiManager::applyMode(){
 
 void WiFiManager::init(){
   WiFi.persistent(false);
-  WiFi.hostname(DEFAULT_HOSTNAME);
   
   applyMode();
 }
@@ -96,12 +101,14 @@ WiFiModes WiFiManager::string2mode(String m){
 
 
 bool emergency_hybrid_mode = false;
+bool skip_disconnect_event = false;
 
 WiFiEventHandler onStationModeConnected = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected& event) {
   printDebug("Connection to AP established!");
   if(emergency_hybrid_mode){
-    emergency_hybrid_mode = false;
     printDebug("Connection to AP restored, leaving Hybrid-Mode!");
+    emergency_hybrid_mode = false;
+    skip_disconnect_event = true;
     WiFiManager::instance().setMode(CLIENT);
     WiFiManager::instance().applyMode();
   }
@@ -112,12 +119,14 @@ WiFiEventHandler onStationModeGotIP = WiFi.onStationModeGotIP([](const WiFiEvent
 });
 
 WiFiEventHandler onStationModeDisconnected = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected& event) {
-  if(!emergency_hybrid_mode){
+  if(!emergency_hybrid_mode && !skip_disconnect_event){
     printDebug("Connection to AP lost!");
     printDebug("Switching to Hybrid-Mode...");
     emergency_hybrid_mode = true;
     WiFiManager::instance().setMode(HYBRID);
     WiFiManager::instance().applyMode();
+  } else {
+    skip_disconnect_event = false;
   }
 });
 

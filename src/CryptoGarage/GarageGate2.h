@@ -1,20 +1,19 @@
 /*
-* CryptoGarage - GarageGate
+* CryptoGarage - GarageGate2
 * 
 * Class for tracking the state of the garage gate. For now it just differentiates between STILL (e.g. open or closed) or MOVING (you know, moving)
 * Works like a state machine, after calling trigger() the gate is in MOVING state for n seconds or util trigger() is called again.
 * setState() not implemented (because not needed) yet.
 */
 
-#ifndef GARAGEGATE_H
-#define GARAGEGATE_H
+#ifndef GARAGEGATE2_H
+#define GARAGEGATE2_H
 
 #include <Ticker.h>
 
 #include "Debug.h"
 
-//enum state {CLOSED, OPENING, OPEN, CLOSING, STOPPED_OPENING, STOPPED_CLOSING}; //later...
-enum state {STILL, MOVING};
+enum state {GATE_NONE, GATE_CLOSED, GATE_OPENING, GATE_OPEN, GATE_CLOSING, GATE_STOPPED_OPENING, GATE_STOPPED_CLOSING};
 
 class GarageGate {
   private:
@@ -22,14 +21,18 @@ class GarageGate {
     Ticker gateTicker;
     static void gateTickerTick(void * context);
     void gateTickerTickStuff();
-    state gateState = STILL;
+    void updateState(int read);
+	
+    state gateState = GATE_NONE;
+    int lastRead = -1;
 
   public:
     state getState();
+    String getStateStr();
     void setState();
     void trigger();
-  
+    void loop();
+    void setup();
 };
 
 #endif
-

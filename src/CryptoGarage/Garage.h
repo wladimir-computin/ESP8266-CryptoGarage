@@ -9,7 +9,11 @@
 
 #include "Device.h"
 #include "AutoTrigger.h"
-#include "GarageGate.h"
+#ifdef GARAGE_GATE_STATUS_PIN
+  #include "GarageGate2.h"
+#else
+  #include "GarageGate.h"
+#endif
 #include "PersistentMemory.h"
 
 #if RELAYLCTECH == 1
@@ -23,6 +27,7 @@
 const char COMMAND_TRIGGER[] = "trigger";
 const char COMMAND_TRIGGER_AUTO[] = "autotrigger";
 const char COMMAND_AUTOTRIGGER_PING[] = "ping";
+const char COMMAND_GATESTATE[] = "gatestate";
 
 class Garage : public Device {
   public:

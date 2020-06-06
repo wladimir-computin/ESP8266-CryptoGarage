@@ -56,6 +56,7 @@
 #include "RateLimit.h"
 #include "Message.h"
 #include "Uptime.h"
+#include "OTA.h"
 #if ENABLE_STATUS_LED == 1
   #include "StatusLED.h"
 #endif
@@ -101,14 +102,13 @@ Garage garage;
 Device * device = &garage;
 
 //OTA update
-ESP8266WebServer httpUpdateServer(HTTP_OTA_PORT);
-ESP8266HTTPUpdateServer httpUpdater;
 bool update_mode = false;
 
 //Communication specific stuff
 Crypto &crypt = Crypto::instance();
 PersistentMemory &mem = PersistentMemory::instance();
 WiFiManager &wifi = WiFiManager::instance();
+OTA ota;
 ChallengeManager challengeManager;
 RateLimit rateLimit;
 
@@ -126,7 +126,7 @@ void initCrypt() {
 void loadSettings() {
   printDebug("Initialising PersistentMemory");
 
-  //clearEEPROM(MEM_FIRST, MEM_LAST); //uncomment this to clear all saved settings on startup.
+  //mem.clearEEPROM(MEM_FIRST, MEM_LAST); //uncomment this to clear all saved settings on startup.
 
   if (mem.readBoolFromEEPROM(MEM_DEV_PASS_SET) == true) { //True if this setting was set atleast once. Otherwise, use default value specified above.
     DEVICEPASS = mem.readStringFromEEPROM(MEM_DEV_PASS, 64);
@@ -164,26 +164,12 @@ void initHardware() {
   #endif
 }
 
-//Here's the entrypoint.
-void setup() {
-  initHardware();
-  printDebug("\nLoading Firmware: " + String(FW_VERSION));
-  loadSettings();
-  initCrypt();
-  setupWiFi();
-  printDebug("Starting TCP server on port " + String(TCP_SERVER_PORT));
-  server.begin();
-  printDebug("Starting UDP server on port " + String(UDP_SERVER_PORT));
-  udp.begin(UDP_SERVER_PORT);
-  device->setup();
-  uptime.start();
-  printDebug("Free HEAP: " + String(ESP.getFreeHeap()));
-  printDebug("Bootsequence finished in " + String(millis()) + "ms" + "!\n");
-  #if ENABLE_STATUS_LED == 1
-    led.fade(StatusLED::SINGLE_ON_OFF, 2000);
-  #endif
+void enableOTA(){
+  if (!update_mode) {
+    ota.start();
+    update_mode = true;
+  }
 }
-
 
 //Here we process the plaintext commands and generate an answer for the client.
 ProcessMessageStruct processMessage(String &message) {
@@ -252,28 +238,24 @@ ProcessMessageStruct processMessage(String &message) {
   }
 
   if (message == COMMAND_UPDATE) {
-    if (!update_mode) {
-      printDebug("Enabling Updatemode!");
-      httpUpdater.setup(&httpUpdateServer, UPDATE_PATH);
-      httpUpdateServer.begin();
-      update_mode = true;
-      #if ENABLE_STATUS_LED == 1
-        led.fade(StatusLED::PERIODIC_FADE, 2000);
-      #endif
-    }
-    return {DATA, wifi.getIP() + ":" + HTTP_OTA_PORT + UPDATE_PATH};
+    enableOTA();
+    return {DATA, "http://" + wifi.getIP() + ":" + HTTP_OTA_PORT + UPDATE_PATH};
   }
 
   printDebug("Received unknown command:" + message);
   return {ERR, "Unknown Command"};
 }
 
-void send_Data_UDP(String data) {
+void send_Data_UDP(String data, IPAddress ip, int port) {
   data = Message::wrap(data);
   printDebug("\n[UDP] Sending:\n" + data + "\n");
-  udp.beginPacket(udp.remoteIP(), udp.remotePort());
-  udp.write(data.c_str());
+  udp.beginPacket(ip, port);
+  udp.write((uint8_t*)data.c_str(), data.length());
   udp.endPacket();
+}
+
+void send_Data_UDP(String data) {
+  send_Data_UDP(data, udp.remoteIP(), udp.remotePort());
 }
 
 String receive_Data_UDP() {
@@ -301,14 +283,15 @@ void stopClient_UDP() {
 void send_Data_TCP(WiFiClient &client, String data) {
   data = Message::wrap(data);
   printDebug("\n[TCP] Sending:\n" + data + "\n");
-  client.print(data + "\n");
-  client.flush();
+  client.println(data);
   yield();
 }
 
 String receive_Data_TCP(WiFiClient &client) {
   if (client.available()) {
     String incoming = client.readStringUntil('\n');
+    client.flush();
+    yield();
     printDebug("\n[TCP] Received:\n" + incoming);
     String body = Message::unwrap(incoming);
     return body;
@@ -322,7 +305,7 @@ void stopClient_TCP(WiFiClient &client) {
   yield();
 }
 
-void doTCPServerStuff_beta() {
+void doTCPServerStuff() {
 
   if (!client || !client.connected()) { //garbage collection
     if (client) {
@@ -330,12 +313,12 @@ void doTCPServerStuff_beta() {
     }
     // wait for a client to connect
     client = server.available();
+    client.setTimeout(TCP_TIMEOUT_MS);
+    client.setNoDelay(true);
+    client.setSync(true);
   }
 
   if (rateLimit.getState() == OPEN) { //Check if we are ready for a new connection
-
-    client.setTimeout(TCP_TIMEOUT_MS);
-    client.setNoDelay(true);
 
     String s = receive_Data_TCP(client);
 
@@ -356,14 +339,11 @@ void doTCPServerStuff_beta() {
         //the client send a correctly encrypted second message.
         } else if (message.type == DATA){
           ProcessMessageStruct ret = processMessage(message.data); //process his data
-          //for some messages (like setSettings) we know that the client may send a following one very quickly.
-          //other messages (like trigger) shouldn't be called that quickly. For the quick ones, we can save the challenge-response handshake.
-          String flags = ret.flags;
-          
-          //preparing next random challenge secret
-          send_Data_TCP(client, Message::encrypt(ret.responseCode, ret.responseData, message.challenge, challengeManager.generateRandomChallenge(), flags)); //send answer
-         
 
+          //preparing next random challenge secret
+          //send answer
+          send_Data_TCP(client, Message::encrypt(ret.responseCode, ret.responseData, message.challenge, challengeManager.generateRandomChallenge(), ret.flags));
+          
           //for some messages (like setSettings) we know that the client may send a following one very quickly.
           //other messages (like trigger) shouldn't be called that quickly.
           if (!(ret.flags.indexOf(FLAG_KEEP_ALIVE) != -1)){
@@ -390,95 +370,6 @@ void doTCPServerStuff_beta() {
   }
 }
 
-//void doTCPServerStuff() {
-//
-//  if (!client || !client.connected()) { //garbage collection
-//    if (client) {
-//      client.stop();
-//    }
-//    // wait for a client to connect
-//    client = server.available();
-//  }
-//
-//  if (rateLimit.getState() == OPEN) { //Check if we are ready for a new connection
-//
-//    //printDebug("[Client connected]");
-//    client.setTimeout(TCP_TIMEOUT_MS);
-//    client.setNoDelay(true);
-//
-//    String s = receive_Data_TCP(client);
-//
-//    if (s != "") {
-//
-//      Msg message; //Msg defined in Message.h
-//
-//      message = Message::decrypt(s, challenge_request_b64);
-//
-//      if(message.type != NOPE) {
-//
-//        if (message.type == HELLO) {
-//          connectionState.setState(NONE);
-//        }
-//        
-//        challenge_request_b64 = "";
-//    
-//        switch (connectionState.getState()) {
-//          case NONE:
-//            if (message.type == HELLO) {
-//              challenge_request_b64 = crypt.getRandomChallengeBase64(); //preparing random challenge secret
-//              send_Data_TCP(client, Message::encrypt(HELLO, "TEST", message.challenge, challenge_request_b64, FLAG_NONE));
-//              //sending encrypted challenge to client, the client has to prove its knowledge of the correct password by encrypting the next
-//              //message containing our challenge. We have proven our knowledge by sending the reencrypted client_challenge back.
-//              connectionState.setState(PHASE2); //the client has only a certain amount of time to answer (and only one guess.)
-//            } else {
-//              send_Data_TCP(client, Message::encrypt(ERR, "Y u no greet me?!", "", "", FLAG_NONE));
-//              stopClient_TCP(client); //the client didn't knew how to talk to us.
-//            }
-//            break;
-//  
-//          case PHASE2:
-//            connectionState.setState(NONE); //the client send a correctly encrypted second message.
-//            if (message.type == DATA){
-//              ProcessMessageStruct ret = processMessage(message.data); //process his data
-//              //for some messages (like setSettings) we know that the client may send a following one very quickly.
-//              //other messages (like trigger) shouldn't be called that quickly. For the quick ones, we can save the challenge-response handshake.
-//              String flags = ret.flags;
-//              if (ret.flags.indexOf(FLAG_KEEP_ALIVE) != -1) {
-//                flags = FLAG_KEEP_ALIVE;
-//                challenge_request_b64 = crypt.getRandomChallengeBase64(); //preparing next random challenge secret
-//                connectionState.setState(PHASE2);
-//              }
-//              send_Data_TCP(client, Message::encrypt(ret.responseCode, ret.responseData, message.challenge, challenge_request_b64, flags)); //send answer
-//             
-//    
-//              //for some messages (like setSettings) we know that the client may send a following one very quickly.
-//              //other messages (like trigger) shouldn't be called that quickly.
-//              if (!ret.flags.indexOf(FLAG_KEEP_ALIVE) != -1) {
-//                stopClient_TCP(client);
-//              }
-//            } else {
-//              printDebug("Wrong formatted message received!");
-//              send_Data_TCP(client, Message::encrypt(ERR, "Nope!", "", "", FLAG_NONE));
-//              stopClient_TCP(client);
-//            }
-//  
-//            break;
-//        }
-//      } else {
-//        printDebug("Decryption failed!");
-//        send_Data_TCP(client, Message::encrypt(ERR, "Nope!", "", "", FLAG_NONE));
-//        stopClient_TCP(client);
-//      }
-//      printDebug("-------------------------------");
-//    }
-//  } else {
-//    client.stop();
-//    yield();
-//    tcpCleanup();
-//  }
-//}
-
-
 String discoverResponse = String(HEADER_DATA) + ":::" + DEFAULT_HOSTNAME;
 String discover = String(HEADER_HELLO) + ":::" + COMMAND_DISCOVER;
 
@@ -502,7 +393,7 @@ void doUDPServerStuff(){
       
       //check if the client send a correctly encrypted message.
       if(message.type != NOPE) {
-  
+
         if (message.type == HELLO) {
           //preparing random challenge secret
           send_Data_UDP(Message::encrypt(HELLO, "", message.challenge, challengeManager.generateRandomChallenge(), FLAG_NONE));
@@ -511,14 +402,10 @@ void doUDPServerStuff(){
   
         } else if (message.type == DATA){
           ProcessMessageStruct ret = processMessage(message.data); //process his data
-          //for some messages (like setSettings) we know that the client may send a following one very quickly.
-          //other messages (like trigger) shouldn't be called that quickly. For the quick ones, we can save the challenge-response handshake.
-          String flags = ret.flags;
           
           //preparing next random challenge secret
-          send_Data_UDP(Message::encrypt(ret.responseCode, ret.responseData, message.challenge, challengeManager.generateRandomChallenge(), flags)); //send answer
+          send_Data_UDP(Message::encrypt(ret.responseCode, ret.responseData, message.challenge, challengeManager.generateRandomChallenge(), ret.flags)); //send answer
          
-
           //for some messages (like setSettings) we know that the client may send a following one very quickly.
           //other messages (like trigger) shouldn't be called that quickly.
           if (!(ret.flags.indexOf(FLAG_KEEP_ALIVE) != -1)){
@@ -541,15 +428,33 @@ void doUDPServerStuff(){
   }
 }
 
-
 void loop() {
-  doUDPServerStuff();
-  doTCPServerStuff_beta();
-  
-
   device->loop();
 
   if (update_mode) {
-    httpUpdateServer.handleClient();
+    ota.loop();
   }
+  
+  doUDPServerStuff();
+  doTCPServerStuff();
+}
+
+//Here's the entrypoint.
+void setup() {
+  initHardware();
+  printDebug("\nLoading Firmware: " + String(FW_VERSION));
+  loadSettings();
+  initCrypt();
+  setupWiFi();
+  printDebug("Starting TCP server on port " + String(TCP_SERVER_PORT));
+  server.begin();
+  printDebug("Starting UDP server on port " + String(UDP_SERVER_PORT));
+  udp.begin(UDP_SERVER_PORT);
+  device->setup();
+  uptime.start();
+  printDebug("Free HEAP: " + String(ESP.getFreeHeap()));
+  printDebug("Bootsequence finished in " + String(millis()) + "ms" + "!\n");
+  #if ENABLE_STATUS_LED == 1
+    led.fade(StatusLED::SINGLE_ON_OFF, 2000);
+  #endif
 }
