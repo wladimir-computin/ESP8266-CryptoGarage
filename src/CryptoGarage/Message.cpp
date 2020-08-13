@@ -8,36 +8,36 @@
 
 String Message::encrypt(MessageType type, const String &data, const String &challenge_response_b64, const String &challenge_request_b64, const String &flags) {
   Crypto &crypto = Crypto::instance();
-  
+
   String header = typeToString(type);
 
   switch (type) {
 
     case ERR:
       return header + ":::" + data;
-    break;
+      break;
 
     case ACK:
     case HELLO:
     case DATA:
       {
-      String cleartext = flags + ":" + challenge_response_b64 + ":" + challenge_request_b64 + ":" + crypto.bytesToBase64((uint8_t*)data.c_str(), data.length());
+        String cleartext = flags + ":" + challenge_response_b64 + ":" + challenge_request_b64 + ":" + crypto.bytesToBase64((uint8_t*)data.c_str(), data.length());
 
-      uint8_t _iv[AES_GCM_IV_LEN];
-      uint8_t _tag[AES_GCM_TAG_LEN];
-      uint8_t _encryptedData[cleartext.length()];
-      crypto.getRandomIV(_iv);
-      crypto.encryptData(cleartext, _iv, _tag, _encryptedData);
-      String iv_b64 = crypto.bytesToBase64(_iv, AES_GCM_IV_LEN);
-      String tag_b64 = crypto.bytesToBase64(_tag, AES_GCM_TAG_LEN);
-      String encryptedData_b64 = crypto.bytesToBase64(_encryptedData, sizeof(_encryptedData));
+        uint8_t _iv[AES_GCM_IV_LEN];
+        uint8_t _tag[AES_GCM_TAG_LEN];
+        uint8_t _encryptedData[cleartext.length()];
+        crypto.getRandomIV(_iv);
+        crypto.encryptData(cleartext, _iv, _tag, _encryptedData);
+        String iv_b64 = crypto.bytesToBase64(_iv, AES_GCM_IV_LEN);
+        String tag_b64 = crypto.bytesToBase64(_tag, AES_GCM_TAG_LEN);
+        String encryptedData_b64 = crypto.bytesToBase64(_encryptedData, sizeof(_encryptedData));
 
-      printDebug("Sending Challenge Response: " + challenge_response_b64);
-      printDebug("Sending Challenge Request: " + challenge_request_b64);
+        printDebug("Sending Challenge Response: " + challenge_response_b64);
+        printDebug("Sending Challenge Request: " + challenge_request_b64);
 
-      return header + ":" + iv_b64 + ":" + tag_b64 + ":" + encryptedData_b64;
+        return header + ":" + iv_b64 + ":" + tag_b64 + ":" + encryptedData_b64;
       }
-    break;
+      break;
 
   }
   return "";
@@ -48,30 +48,24 @@ Msg Message::decrypt(String &s, ChallengeManager &cm) {
   Msg err = {NOPE, "", ""};
   Msg ret = {NOPE, "", ""};
 
-  int deli1 = s.indexOf(":");
-  int deli2 = s.indexOf(":", deli1 + 1);
-  int deli3 = s.indexOf(":", deli2 + 1);
+  Crypto &crypto = Crypto::instance();
 
-  if (deli1 != -1 && deli2 != -1 && deli3 != -1) { //Check if message is formed correctly.
+  MessageType type = stringToType(getParam(s,0));
+  String iv_b64 = getParam(s,1);
+  String tag_b64 = getParam(s,2);
+  String encryptedData_b64 = getParam(s,3);
 
-    Crypto &crypto = Crypto::instance();
-    
-    MessageType type = stringToType(s.substring(0, deli1));
-    String iv_b64 = s.substring(deli1 + 1, deli2);
-    String tag_b64 = s.substring(deli2 + 1, deli3);
-    String encryptedData_b64 = s.substring(deli3 + 1);
-    
-    switch (type) {
+  switch (type) {
 
-      case HELLO: //fall through
-      case ACK:
-      case DATA:
+    case HELLO: //fall through
+    case ACK:
+    case DATA:
 
-        {
+      {
         uint8_t _iv[AES_GCM_IV_LEN];
         uint8_t _tag[AES_GCM_TAG_LEN];
         uint8_t _encryptedData[crypto.base64DecodedLength(encryptedData_b64)];
-    
+
         if (crypto.base64DecodedLength(iv_b64) == AES_GCM_IV_LEN) {//AES-GCM IV
           crypto.base64ToBytes(iv_b64, _iv);
           printDebug("Got IV: " + iv_b64);
@@ -79,7 +73,7 @@ Msg Message::decrypt(String &s, ChallengeManager &cm) {
           printDebug("IV not ok!");
           return err;
         }
-    
+
         if (crypto.base64DecodedLength(tag_b64) == AES_GCM_TAG_LEN) {//AES-GCM IV
           crypto.base64ToBytes(tag_b64, _tag);
           printDebug("Got TAG: " + tag_b64);
@@ -87,85 +81,74 @@ Msg Message::decrypt(String &s, ChallengeManager &cm) {
           printDebug("TAG not ok!");
           return err;
         }
-    
+
         crypto.base64ToBytes(encryptedData_b64, _encryptedData);
         printDebug("Got Payload: " + encryptedData_b64);
-    
+
         String decrypted_message = crypto.decryptData(_encryptedData, sizeof(_encryptedData), _iv, _tag); //returns "" if decryption fails
-    
-        if (decrypted_message == ""){
+
+        if (decrypted_message == "") {
           return err;
         }
-        
-        String _challenge_response_b64;
-        String _challenge_request_b64;
-        String _data_b64;
-        
-        deli1 = decrypted_message.indexOf(":");
-        deli2 = decrypted_message.indexOf(":", deli1 + 1);
-        deli3 = decrypted_message.indexOf(":", deli2 + 1);
-        
-        if (deli1 != -1 && deli2 != -1 && deli3 != -1){
-          //flags placeholder = decrypted_message.substring(0, deli1);
-          _challenge_response_b64 = decrypted_message.substring(deli1 + 1, deli2);
-          _challenge_request_b64 = decrypted_message.substring(deli2 + 1, deli3);
-          _data_b64 = decrypted_message.substring(deli3 + 1);
-        }
 
-        if(type == DATA){
+        String _flags = getParam(decrypted_message, 0);
+        String _challenge_response_b64 = getParam(decrypted_message, 1);
+        String _challenge_request_b64 = getParam(decrypted_message, 2);
+        String _data_b64 = getParam(decrypted_message, 3);
+
+        if (type == DATA) {
           printDebug("Got Challenge Response: " + _challenge_response_b64);
-          if (cm.verifyChallenge(_challenge_response_b64)){
+          if (cm.verifyChallenge(_challenge_response_b64)) {
             ret.data = String(crypto.base64ToBytes(_data_b64));
           } else {
             printDebug("Challenge missmatch!");
             return err;
           }
         }
-    
+
         printDebug("Got Challenge Request: " + _challenge_request_b64);
         ret.challenge = _challenge_request_b64;
 
         ret.type = type;
-    
+
         switch (type) {
-    
+
           case ACK:
           case HELLO:
             printDebug("Decrypted message: [" + typeToString(type) + "]");
             return ret;
-          break;  
-            
+            break;
+
           case DATA:
             printDebug("Decrypted message: [" + typeToString(type) + "] " + ret.data);
-        
+
             if (ret.data != "") {
               return ret;
             } else {
               return err;
             }
-          break;
-    
+            break;
+
           default:
             return err;
-          break;
+            break;
         }
-        }
+      }
       break;
 
-      case ERR:
-        {
+    case ERR:
+      {
         ret.data = encryptedData_b64;
         ret.type = type;
         return ret;
-        }
+      }
       break;
 
-      default:
-        return err;
+    default:
+      return err;
       break;
-    }
-    }
-    return err;
+  }
+  return err;
 }
 
 String Message::typeToString(MessageType t) {
@@ -216,4 +199,27 @@ String Message::unwrap(String &message) { //REGEX: \[BEGIN\]\s*(.{0,MAX_MESSAGE_
   }
   out.trim();
   return out;
+}
+
+String Message::getParam(String& message, int index, bool remaining) {
+  int startindex = 0;
+  int endindex = 0;
+
+  for (int i = 0; i < index; i++) {
+    startindex = message.indexOf(':', startindex)+1;
+    if (startindex == 0) {
+      startindex = -1;
+      break;
+    }
+  }
+
+  if (startindex != -1) {
+    endindex = message.indexOf(':', startindex);
+    if (endindex != -1 && !remaining) {
+      return message.substring(startindex, endindex);
+    } else {
+      return message.substring(startindex);
+    }
+  }
+  return "";
 }

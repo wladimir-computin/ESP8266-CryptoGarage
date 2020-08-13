@@ -15,6 +15,7 @@ class Device{
   public:
     virtual ProcessMessageStruct processMessage(String &message) = 0;
     virtual String getStatus() = 0;
+    virtual String getName() = 0;
     virtual void loop(){};
     virtual void setup(){};
 };

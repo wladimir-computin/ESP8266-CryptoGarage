@@ -42,6 +42,7 @@ class StatusLED {
     int conv1023(int val);
     const int MAXLED = 1;
     const int MINLED = 1023;
+    const int FADEFPS = 60;
 
 
   public:

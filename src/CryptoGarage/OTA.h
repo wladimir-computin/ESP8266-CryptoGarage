@@ -12,7 +12,7 @@
 #include <ArduinoOTA.h>
 #include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266WebServer.h>
-#include <FS.h>
+#include <LittleFS.h>
 
 #if ENABLE_STATUS_LED == 1
   #include "StatusLED.h"

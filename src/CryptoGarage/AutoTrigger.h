@@ -23,6 +23,8 @@
   #include "StatusLED.h"
 #endif
 
+const int AUTOTRIGGER_TIMEOUT_DEFAULT = 10; //Seconds after last succesfull ping.
+
 class AutoTrigger {
   
   private:
@@ -37,7 +39,7 @@ class AutoTrigger {
     #endif
       
   public:
-      int tickerEnd = AUTOTRIGGER_TIMEOUT_DEFAULT; //Defined in Config.h
+      int tickerEnd = AUTOTRIGGER_TIMEOUT_DEFAULT;
       void engage();
       void disengage();
       bool isActive();

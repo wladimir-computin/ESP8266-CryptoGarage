@@ -14,6 +14,7 @@
 
 #include "Debug.h"
 
+const int RELAY_TRIGGER_TIME_MS = 250;  //click ...time in ms... clack
 
 class IRelay{
   protected:

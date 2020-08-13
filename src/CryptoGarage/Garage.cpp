@@ -16,11 +16,11 @@ void Garage::loop(){
 }
 
 void Garage::setup(){
-    PersistentMemory &mem = PersistentMemory::instance();
-    if (mem.readBoolFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT_SET) == true) {
-      autoTrigger.setEnd(mem.readIntFromEEPROM(MEM_AUTOTRIGGER_TIMEOUT));
-    gateState.setup();
-  }
+  PersistentMemory pmem(DEVICENAME, true);
+  int timeout = pmem.readInt(KEY_AUTOTRIGGER_TIMEOUT, AUTOTRIGGER_TIMEOUT_DEFAULT);
+  pmem.commit();
+  autoTrigger.setEnd(timeout);
+  gateState.setup();
 }
 
 ProcessMessageStruct Garage::processMessage(String &message) {
@@ -57,6 +57,10 @@ ProcessMessageStruct Garage::processMessage(String &message) {
   }
 
   return {ERR, "NO_COMMAND"};
+}
+
+String Garage::getName(){
+  return DEVICENAME;
 }
 
 String Garage::getStatus(){

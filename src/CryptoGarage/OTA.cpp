@@ -17,16 +17,20 @@ void OTA::start(){
   ArduinoOTA.onStart([]() {
       // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
       printDebug("Update started...");
-      SPIFFS.end();
+      LittleFS.end();
+      #if ENABLE_STATUS_LED == 1
       StatusLED::instance().fadeStop();
       StatusLED::instance().setVal(255);
+      #endif
     });
   ArduinoOTA.onEnd([]() {
       printDebug("Done!");
     });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
       printfDebug("Progress: %u%%\r", (progress / (total / 100)));
+      #if ENABLE_STATUS_LED == 1
       StatusLED::instance().setVal(255 - progress / (total / 255));
+      #endif
     });
   ArduinoOTA.onError([](ota_error_t error) {
       printfDebug("Error[%u]: ", error);

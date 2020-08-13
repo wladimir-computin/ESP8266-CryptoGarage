@@ -20,7 +20,7 @@ class Uptime {
     
     Ticker uptimeTicker;
     static void uptimeTick(void * context);
-    long secsUp;
+    uint32_t secsUp;
 
   public:
     static Uptime& instance() {

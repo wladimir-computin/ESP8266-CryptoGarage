@@ -26,7 +26,7 @@ void StatusLED::fadeToVal(int val, int time_ms, void (*callback)()){
   argument.goal = val;
   argument.time_ms = time_ms;
   argument.ms_passed = 0;
-  ledTicker.attach_ms(1000/60, ledTickerTick, (void*)callback); 
+  ledTicker.attach_ms(1000/FADEFPS, ledTickerTick, (void*)callback); 
 }
 
 void StatusLED::fade(FadeMode fademode, int time_ms){
@@ -52,14 +52,17 @@ void StatusLED::ledTickerTick(void * callback){
 }
 
 void StatusLED::ledTickerTick2(){
-  if(argument.ms_passed >= argument.time_ms){
+  if(argument.goal == current){
     ledTicker.detach();
     setVal(argument.goal);
     fadeCompleted();
   } else {
-    double m = (double)(argument.goal - argument.old_current) / (double)argument.time_ms;
-    int new_current = (int)(m * (double)(argument.ms_passed) + argument.old_current);
-    argument.ms_passed += (1000/60);
+    double m = (double)(argument.ms_passed) / (double)argument.time_ms;
+    if (m > 1){
+      m = 1;
+    }
+    int new_current = (int)round((double)argument.old_current+(m*(argument.goal - argument.old_current)));
+    argument.ms_passed += (1000/FADEFPS);
     setVal(new_current);
   }
 }

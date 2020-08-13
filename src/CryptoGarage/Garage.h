@@ -8,13 +8,13 @@
 #define GARAGE_H
 
 #include "Device.h"
+#include "PersistentMemory.h"
 #include "AutoTrigger.h"
 #ifdef GARAGE_GATE_STATUS_PIN
   #include "GarageGate2.h"
 #else
   #include "GarageGate.h"
 #endif
-#include "PersistentMemory.h"
 
 #if RELAYLCTECH == 1
   #include "LCTechRelay.h"
@@ -23,6 +23,10 @@
 //#elif
   //your relay here...
 #endif
+
+const char DEVICENAME[] = "Garage";
+
+const char KEY_AUTOTRIGGER_TIMEOUT[] = "autotrigger_timeout";
 
 const char COMMAND_TRIGGER[] = "trigger";
 const char COMMAND_TRIGGER_AUTO[] = "autotrigger";
@@ -33,6 +37,7 @@ class Garage : public Device {
   public:
     //Here we process the plaintext commands and generate an answer for the client.
     ProcessMessageStruct processMessage(String &message);
+    String getName();
     String getStatus();
     void loop();
     void setup();

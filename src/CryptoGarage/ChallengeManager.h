@@ -21,8 +21,10 @@ class ChallengeManager {
     String challenge;
     Ticker stateTicker;
     static void stateTick(void * context);
+    int challenge_timeout = DEFAULT_CHALLENGE_VALIDITY_TIMEOUT;
 
   public:
+    void setChallengeTimeout(int challenge_timeout);
     String generateRandomChallenge();
     String getCurrentChallenge();
     void resetChallenge();

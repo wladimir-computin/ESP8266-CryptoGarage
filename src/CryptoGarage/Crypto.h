@@ -27,6 +27,9 @@
 #include "AllConfig.h"
 #include "Debug.h"
 #include "cBase64.h"
+
+const char KEY_CRYPTO_PROBE[] = "probe";
+const char KEY_CRYPTO_KEY[] = "key";
  
 class Crypto {
   

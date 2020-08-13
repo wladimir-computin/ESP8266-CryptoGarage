@@ -6,8 +6,12 @@
 
 #include "ChallengeManager.h"
 
+void ChallengeManager::setChallengeTimeout(int challenge_timeout) {
+  this->challenge_timeout = challenge_timeout;
+}
+
 void ChallengeManager::stateTick(void * context) {
-  printDebug("Challenge timed out");
+  printDebug("[ChallengenMan] Challenge timed out");
   (*(ChallengeManager*)context).resetChallenge();
 }
 
@@ -18,7 +22,7 @@ String ChallengeManager::getCurrentChallenge(){
 String ChallengeManager::generateRandomChallenge(){
   resetChallenge();
   challenge = Crypto::instance().getRandomChallengeBase64();
-  stateTicker.attach(CHALLENGE_VALIDITY_TIMEOUT, stateTick, (void*)this);
+  stateTicker.attach(challenge_timeout, stateTick, (void*)this);
   return challenge;
 }
 

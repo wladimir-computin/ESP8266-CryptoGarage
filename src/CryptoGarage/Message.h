@@ -44,16 +44,14 @@ struct ProcessMessageStruct{
 };
 
 class Message {
-  private:
+  public:
     static String typeToString(MessageType t);
     static MessageType stringToType(String type);
-
-  public:
     static String encrypt(MessageType type, const String &data, const String &challenge_answer_b64, const String &challenge_request_b64, const String &flags);
     static Msg decrypt(String &s, ChallengeManager &cm);
     static String wrap(String &in);
     static String unwrap(String &in);
-    //static bool decrypt(String &raw, uint8_t (&iv)[AES_GCM_IV_LEN], uint8_t * out);
+    static String getParam(String &message, int index, bool remaining=false);
 };
 
 #endif
